@@ -1,44 +1,39 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-export enum MessageType { text = 'text', image = 'image', video = 'video', file = 'file' }
-export enum MessageStatus { sending = 'sending', sent = 'sent', delivered = 'delivered', read = 'read', failed = 'failed' }
+export enum MessageType { text = 'text', image = 'image', file = 'file', system = 'system' }
 
 @Entity('messages')
 export class Message {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
+  @PrimaryGeneratedColumn()
+  id!: number;
 
   @Index()
-  @Column({ type: 'varchar', length: 36 })
-  conversationId!: string;
+  @Column({ type: 'bigint', name: 'conversation_id' })
+  conversationId!: number;
 
   @Index()
-  @Column({ type: 'varchar', length: 36 })
-  senderId!: string;
+  @Column({ type: 'bigint', name: 'sender_id' })
+  senderId!: number;
 
   @Index()
-  @Column({ type: 'varchar', length: 36 })
-  receiverId!: string;
+  @Column({ type: 'bigint', name: 'receiver_id' })
+  receiverId!: number;
 
-  @Column({ type: 'varchar', length: 191 })
+  @Column({ type: 'varchar', length: 191, name: 'sender_name' })
   senderName!: string;
 
-  @Column({ type: 'varchar', length: 191 })
+  @Column({ type: 'varchar', length: 191, name: 'receiver_name' })
   receiverName!: string;
 
-  @Column({ type: 'enum', enum: MessageType, default: MessageType.text })
+  @Column({ type: 'enum', enum: MessageType, name: 'message_type', default: MessageType.text })
   type!: MessageType;
-
-  @Column({ type: 'enum', enum: MessageStatus, default: MessageStatus.sent })
-  status!: MessageStatus;
 
   @Column({ type: 'text' })
   content!: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'datetime', name: 'read_at', nullable: true })
   readAt!: Date | null;
 }
-

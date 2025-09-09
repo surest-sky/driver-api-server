@@ -51,14 +51,14 @@ export class UsersController {
   @Roles('coach')
   async students(
     @Req() req: any,
-    @Query('schoolCode') schoolCode: string,
+    @Query('schoolId') schoolId: string,
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '20',
     @Query('q') q?: string,
   ) {
     const p = Number(page) || 1;
     const ps = Number(pageSize) || 20;
-    const { items, total } = await this.users.listStudentsBySchool(schoolCode, p, ps, q);
+    const { items, total } = await this.users.listStudentsBySchool(+schoolId, p, ps, q);
     return { items, total, page: p, pageSize: ps };
   }
 

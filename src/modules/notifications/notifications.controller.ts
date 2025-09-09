@@ -1,7 +1,6 @@
 import { Body, Controller, Delete, Get, Patch, Post, Query, Req, UseGuards, Param } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { NotificationsService } from './notifications.service';
-import { NotificationStatus } from './notification.entity';
 
 class MarkAsReadDto {
   notificationIds?: string[];
@@ -18,11 +17,12 @@ export class NotificationsController {
     @Req() req: any,
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '20',
-    @Query('status') status?: NotificationStatus,
+    @Query('status') status?: 'unread' | 'read',
   ) {
     const p = Number(page) || 1;
     const ps = Number(pageSize) || 20;
-    const { items, total } = await this.svc.getUserNotifications(req.user.sub, p, ps, status);
+    const onlyUnread = status === 'unread' ? true : undefined;
+    const { items, total } = await this.svc.getUserNotifications(req.user.sub, p, ps, onlyUnread);
     return { items, total, page: p, pageSize: ps };
   }
 

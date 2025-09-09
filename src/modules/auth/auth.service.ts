@@ -28,6 +28,27 @@ export class AuthService {
 
     const payload = { sub: user.id, role: user.role };
     const token = await this.jwt.signAsync(payload);
-    return { token, user };
+
+    // 返回前端友好的 User DTO：
+    // - 避免泄露 passwordHash
+    // - 将数值型 ID 转成字符串，兼容前端期望类型
+    // - 将日期转成 ISO 字符串
+    const userDto = {
+      id: String(user.id),
+      email: user.email,
+      name: user.name,
+      avatarUrl: user.avatarUrl ?? null,
+      birthDate: user.birthDate ? user.birthDate.toISOString() : null,
+      role: user.role,
+      schoolId: user.schoolId != null ? String(user.schoolId) : null,
+      createdAt: (user as any).createdAt
+        ? new Date((user as any).createdAt).toISOString()
+        : null,
+      updatedAt: (user as any).updatedAt
+        ? new Date((user as any).updatedAt).toISOString()
+        : null,
+    };
+
+    return { token, user: userDto };
   }
 }

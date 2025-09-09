@@ -2,30 +2,29 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Update
 
 @Entity('conversations')
 export class Conversation {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
+  @PrimaryGeneratedColumn()
+  id!: number;
 
   @Index()
-  @Column({ type: 'varchar', length: 36 })
-  studentId!: string;
+  @Column({ type: 'bigint', name: 'participant1_id' })
+  participant1Id!: number;
+
+  @Column({ type: 'varchar', length: 191, name: 'participant1_name' })
+  participant1Name!: string;
 
   @Index()
-  @Column({ type: 'varchar', length: 36 })
-  coachId!: string;
+  @Column({ type: 'bigint', name: 'participant2_id' })
+  participant2Id!: number;
 
-  @Column({ type: 'varchar', length: 191 })
-  studentName!: string;
+  @Column({ type: 'varchar', length: 191, name: 'participant2_name' })
+  participant2Name!: string;
 
-  @Column({ type: 'varchar', length: 191 })
-  coachName!: string;
-
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'datetime', name: 'last_message_at', nullable: true })
   lastMessageAt!: Date | null;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
 }
-

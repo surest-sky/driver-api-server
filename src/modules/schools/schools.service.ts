@@ -12,13 +12,11 @@ export class SchoolsService {
   ) {}
 
   async getForCoach(coachId: string) {
-    const coach = await this.users.findById(coachId);
-    const code = coach?.schoolCode || 'DEFAULT';
-    let school = await this.repo.findOne({ where: { code } });
-    if (!school) {
-      school = this.repo.create({ code, name: coach?.schoolName || '我的驾校' });
-      school = await this.repo.save(school);
+    const coach = await this.users.findById(+coachId);
+    if (!coach?.school) {
+      throw new Error('Coach school not found');
     }
+    const school = coach.school;
     
     // 转换字段名以匹配前端模型
     return {

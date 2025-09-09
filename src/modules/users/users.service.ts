@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './user.entity';
-import { StudentCoachRelation } from './student-coach-relation.entity';
+import { StudentCoachRelation, RelationStatus } from './student-coach-relation.entity';
 
 @Injectable()
 export class UsersService {
@@ -53,7 +53,7 @@ export class UsersService {
 
   async getCoachForStudent(studentId: number) {
     const relation = await this.relationRepo.findOne({
-      where: { studentId, status: 'active' },
+      where: { studentId, status: RelationStatus.active },
       relations: ['coach']
     });
     return relation?.coach;
@@ -66,14 +66,14 @@ export class UsersService {
     });
     
     if (existing) {
-      existing.status = 'active' as any;
+      existing.status = RelationStatus.active;
       return this.relationRepo.save(existing);
     }
     
     const relation = this.relationRepo.create({
       studentId,
       coachId,
-      status: 'active' as any
+      status: RelationStatus.active
     });
     
     return this.relationRepo.save(relation);

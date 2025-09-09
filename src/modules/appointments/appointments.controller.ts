@@ -19,7 +19,7 @@ export class AppointmentsController {
 
   @Get(':id')
   async detail(@Req() req: any, @Param('id') id: string) {
-    return this.svc.getById(id, req.user.sub);
+    return this.svc.getById(+id, req.user.sub);
   }
 
   @Post()
@@ -40,7 +40,7 @@ export class AppointmentsController {
   @Roles('coach')
   async coachCreate(@Req() req: any, @Body() body: { studentId: string; startTime: string; endTime: string; type?: AppointmentType; notes?: string; location?: string; }) {
     return this.svc.create({
-      studentId: body.studentId,
+      studentId: +body.studentId,
       coachId: req.user.sub,
       startTime: new Date(body.startTime),
       endTime: new Date(body.endTime),
@@ -53,35 +53,35 @@ export class AppointmentsController {
   @Post(':id/confirm')
   @Roles('coach')
   async confirm(@Req() req: any, @Param('id') id: string, @Body() body: { coachNotes?: string }) {
-    return this.svc.confirm(id, req.user.sub, body.coachNotes);
+    return this.svc.confirm(+id, req.user.sub, body.coachNotes);
   }
 
   @Post(':id/reject')
   @Roles('coach')
   async reject(@Req() req: any, @Param('id') id: string, @Body() body: { reason?: string }) {
-    return this.svc.reject(id, req.user.sub, body.reason);
+    return this.svc.reject(+id, req.user.sub, body.reason);
   }
 
   @Post(':id/cancel')
   async cancel(@Req() req: any, @Param('id') id: string, @Body() body: { notes?: string }) {
-    return this.svc.cancel(id, req.user.sub, body.notes);
+    return this.svc.cancel(+id, req.user.sub, body.notes);
   }
 
   @Post(':id/complete')
   @Roles('coach')
   async complete(@Req() req: any, @Param('id') id: string, @Body() body: { coachNotes?: string, studentNotes?: string }) {
-    return this.svc.complete(id, req.user.sub, body.coachNotes, body.studentNotes);
+    return this.svc.complete(+id, req.user.sub, body.coachNotes, body.studentNotes);
   }
 
   @Patch(':id/reschedule')
   @Roles('coach')
   async reschedule(@Req() req: any, @Param('id') id: string, @Body() body: { startTime: string; endTime: string; notes?: string }) {
-    return this.svc.reschedule(id, req.user.sub, new Date(body.startTime), new Date(body.endTime), body.notes);
+    return this.svc.reschedule(+id, req.user.sub, new Date(body.startTime), new Date(body.endTime), body.notes);
   }
 
   @Get('slots/day')
   async slots(@Query('coachId') coachId: string, @Query('date') date: string) {
-    return this.svc.slots(coachId, new Date(date));
+    return this.svc.slots(+coachId, new Date(date));
   }
 
   @Get('stats/me')

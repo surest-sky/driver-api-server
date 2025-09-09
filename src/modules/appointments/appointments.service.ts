@@ -87,7 +87,7 @@ export class AppointmentsService {
     return saved;
   }
 
-  async confirm(id: string, coachId: string, coachNotes?: string) {
+  async confirm(id: number, coachId: number, coachNotes?: string) {
     const a = await this.repo.findOne({ where: { id } });
     if (!a) throw new NotFoundException('预约不存在');
     if (a.coachId !== coachId) throw new ForbiddenException();
@@ -96,20 +96,23 @@ export class AppointmentsService {
     a.status = AppointmentStatus.confirmed;
     a.coachNotes = coachNotes ?? a.coachNotes;
     const saved = await this.repo.save(a);
-    // 通知学员
-    const conv = await this.messages.getOrCreateConversation(a.studentId, a.studentName, a.coachId, a.coachName);
-    await this.messages.sendMessage({
-      conversationId: conv.id,
-      senderId: a.coachId,
-      senderName: a.coachName,
-      receiverId: a.studentId,
-      receiverName: a.studentName,
-      content: `你的预约已被教练确认：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
-    });
+    // 通知学员 - 需要加载关联数据
+    const appointment = await this.repo.findOne({ where: { id }, relations: ['student', 'coach'] });
+    if (appointment) {
+      const conv = await this.messages.getOrCreateConversation(appointment.student.id, appointment.student.name, appointment.coach.id, appointment.coach.name);
+      await this.messages.sendMessage({
+        conversationId: conv.id,
+        senderId: appointment.coach.id,
+        senderName: appointment.coach.name,
+        receiverId: appointment.student.id,
+        receiverName: appointment.student.name,
+        content: `你的预约已被教练确认：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
+      });
+    }
     return saved;
   }
 
-  async reject(id: string, coachId: string, reason?: string) {
+  async reject(id: number, coachId: number, reason?: string) {
     const a = await this.repo.findOne({ where: { id } });
     if (!a) throw new NotFoundException('预约不存在');
     if (a.coachId !== coachId) throw new ForbiddenException();
@@ -117,19 +120,22 @@ export class AppointmentsService {
     a.status = AppointmentStatus.rejected;
     a.coachNotes = reason ?? a.coachNotes;
     const saved = await this.repo.save(a);
-    const conv = await this.messages.getOrCreateConversation(a.studentId, a.studentName, a.coachId, a.coachName);
-    await this.messages.sendMessage({
-      conversationId: conv.id,
-      senderId: a.coachId,
-      senderName: a.coachName,
-      receiverId: a.studentId,
-      receiverName: a.studentName,
-      content: `你的预约被拒绝：${reason ?? ''}`,
-    });
+    const appointment = await this.repo.findOne({ where: { id }, relations: ['student', 'coach'] });
+    if (appointment) {
+      const conv = await this.messages.getOrCreateConversation(appointment.student.id, appointment.student.name, appointment.coach.id, appointment.coach.name);
+      await this.messages.sendMessage({
+        conversationId: conv.id,
+        senderId: appointment.coach.id.toString(),
+        senderName: appointment.coach.name,
+        receiverId: appointment.student.id.toString(),
+        receiverName: appointment.student.name,
+        content: `你的预约被拒绝：${reason ?? ''}`,
+      });
+    }
     return saved;
   }
 
-  async cancel(id: string, userId: string, notes?: string) {
+  async cancel(id: number, userId: number, notes?: string) {
     const a = await this.repo.findOne({ where: { id } });
     if (!a) throw new NotFoundException('预约不存在');
     if (a.studentId !== userId && a.coachId !== userId) throw new ForbiddenException();
@@ -141,22 +147,25 @@ export class AppointmentsService {
     a.status = AppointmentStatus.cancelled;
     a.notes = notes ?? a.notes;
     const saved = await this.repo.save(a);
-    const otherId = userId === a.studentId ? a.coachId : a.studentId;
-    const otherName = userId === a.studentId ? a.coachName : a.studentName;
-    const meName = userId === a.studentId ? a.studentName : a.coachName;
-    const conv = await this.messages.getOrCreateConversation(a.studentId, a.studentName, a.coachId, a.coachName);
-    await this.messages.sendMessage({
-      conversationId: conv.id,
-      senderId: userId,
-      senderName: meName,
-      receiverId: otherId,
-      receiverName: otherName,
-      content: `${meName} 取消了预约：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
-    });
+    const appointment = await this.repo.findOne({ where: { id }, relations: ['student', 'coach'] });
+    if (appointment) {
+      const otherId = userId === a.studentId ? a.coachId : a.studentId;
+      const otherName = userId === a.studentId ? appointment.coach.name : appointment.student.name;
+      const meName = userId === a.studentId ? appointment.student.name : appointment.coach.name;
+      const conv = await this.messages.getOrCreateConversation(appointment.student.id.toString(), appointment.student.name, appointment.coach.id.toString(), appointment.coach.name);
+      await this.messages.sendMessage({
+        conversationId: conv.id,
+        senderId: userId.toString(),
+        senderName: meName,
+        receiverId: otherId.toString(),
+        receiverName: otherName,
+        content: `${meName} 取消了预约：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
+      });
+    }
     return saved;
   }
 
-  async complete(id: string, coachId: string, coachNotes?: string, studentNotes?: string) {
+  async complete(id: number, coachId: number, coachNotes?: string, studentNotes?: string) {
     const a = await this.repo.findOne({ where: { id } });
     if (!a) throw new NotFoundException('预约不存在');
     if (a.coachId !== coachId) throw new ForbiddenException();
@@ -165,19 +174,22 @@ export class AppointmentsService {
     a.coachNotes = coachNotes ?? a.coachNotes;
     a.studentNotes = studentNotes ?? a.studentNotes;
     const saved = await this.repo.save(a);
-    const conv = await this.messages.getOrCreateConversation(a.studentId, a.studentName, a.coachId, a.coachName);
-    await this.messages.sendMessage({
-      conversationId: conv.id,
-      senderId: a.coachId,
-      senderName: a.coachName,
-      receiverId: a.studentId,
-      receiverName: a.studentName,
-      content: `课程已完成，教练备注：${coachNotes ?? ''}`,
-    });
+    const appointment = await this.repo.findOne({ where: { id }, relations: ['student', 'coach'] });
+    if (appointment) {
+      const conv = await this.messages.getOrCreateConversation(appointment.student.id.toString(), appointment.student.name, appointment.coach.id.toString(), appointment.coach.name);
+      await this.messages.sendMessage({
+        conversationId: conv.id,
+        senderId: appointment.coach.id,
+        senderName: appointment.coach.name,
+        receiverId: appointment.student.id,
+        receiverName: appointment.student.name,
+        content: `课程已完成，教练备注：${coachNotes ?? ''}`,
+      });
+    }
     return saved;
   }
 
-  async reschedule(id: string, coachId: string, startTime: Date, endTime: Date, notes?: string) {
+  async reschedule(id: number, coachId: number, startTime: Date, endTime: Date, notes?: string) {
     const a = await this.repo.findOne({ where: { id } });
     if (!a) throw new NotFoundException('预约不存在');
     if (a.coachId !== coachId) throw new ForbiddenException();
@@ -187,19 +199,22 @@ export class AppointmentsService {
     a.endTime = endTime;
     a.notes = notes ?? a.notes;
     const saved = await this.repo.save(a);
-    const conv = await this.messages.getOrCreateConversation(a.studentId, a.studentName, a.coachId, a.coachName);
-    await this.messages.sendMessage({
-      conversationId: conv.id,
-      senderId: a.coachId,
-      senderName: a.coachName,
-      receiverId: a.studentId,
-      receiverName: a.studentName,
-      content: `课程时间已改期：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
-    });
+    const appointment = await this.repo.findOne({ where: { id }, relations: ['student', 'coach'] });
+    if (appointment) {
+      const conv = await this.messages.getOrCreateConversation(appointment.student.id, appointment.student.name, appointment.coach.id, appointment.coach.name);
+      await this.messages.sendMessage({
+        conversationId: conv.id,
+        senderId: appointment.coach.id,
+        senderName: appointment.coach.name,
+        receiverId: appointment.student.id,
+        receiverName: appointment.student.name,
+        content: `课程时间已改期：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
+      });
+    }
     return saved;
   }
 
-  async slots(coachId: string, date: Date) {
+  async slots(coachId: number, date: Date) {
     const start = new Date(date); start.setHours(0,0,0,0);
     const end = new Date(date); end.setHours(23,59,59,999);
     const dayApps = await this.repo.find({ where: { coachId, startTime: Between(start, end), status: MoreThanOrEqual('pending') as any }, order: { startTime: 'ASC' } });
@@ -216,7 +231,7 @@ export class AppointmentsService {
     return slots;
   }
 
-  async stats(userId: string, role: 'student' | 'coach') {
+  async stats(userId: number, role: 'student' | 'coach') {
     const list = await this.listForUser(userId, role);
     const total = list.length;
     const confirmed = list.filter(a => a.status === AppointmentStatus.confirmed).length;
@@ -228,7 +243,7 @@ export class AppointmentsService {
     return { total, confirmed, completed, pending, cancelled, thisMonth };
   }
 
-  private async _ensureNoConflict(coachId: string, startTime: Date, endTime: Date, ignoreId?: string) {
+  private async _ensureNoConflict(coachId: number, startTime: Date, endTime: Date, ignoreId?: number) {
     const qb = this.repo.createQueryBuilder('a')
       .where('a.coachId = :coachId', { coachId })
       .andWhere('(a.status IN (:...st))', { st: [AppointmentStatus.pending, AppointmentStatus.confirmed] })
@@ -249,4 +264,3 @@ export class AppointmentsService {
     if (dur > 3*60*60*1000) throw new BadRequestException('单次课程时长不能超过3小时');
   }
 }
-
