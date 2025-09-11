@@ -11,6 +11,10 @@ import { SchoolsModule } from "./modules/schools/schools.module";
 import { UploadsModule } from "./modules/uploads/uploads.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { AppointmentsModule } from "./modules/appointments/appointments.module";
+import { AvailabilityModule } from "./modules/availability/availability.module";
+import { VideosModule } from "./modules/videos/videos.module";
+import { LearningRecordsModule } from "./modules/learning-records/learning-records.module";
+import { TeachingStatsModule } from "./modules/teaching-stats/teaching-stats.module";
 
 @Module({
   imports: [
@@ -54,7 +58,11 @@ import { AppointmentsModule } from "./modules/appointments/appointments.module";
     SchoolsModule,
     UploadsModule,
     AppointmentsModule,
+    AvailabilityModule,
     NotificationsModule,
+    VideosModule,
+    LearningRecordsModule,
+    TeachingStatsModule,
   ],
 })
 export class AppModule {}

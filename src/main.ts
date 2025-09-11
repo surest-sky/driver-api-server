@@ -3,12 +3,16 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SocketIOAdapter } from './socket-io.adapter';
 import { join } from 'path';
 import * as fs from 'fs';
 import { RequestLoggerMiddleware } from './middleware/request-logger.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  
+  // 启用自定义Socket.IO适配器
+  app.useWebSocketAdapter(new SocketIOAdapter(app));
   
   // 启用CORS
   app.enableCors();
@@ -38,5 +42,7 @@ async function bootstrap() {
   await app.listen(port);
   // eslint-disable-next-line no-console
   console.log(`API listening on http://localhost:${port}/api`);
+  // eslint-disable-next-line no-console
+  console.log(`Socket.IO server running on http://localhost:${port}`);
 }
 bootstrap();

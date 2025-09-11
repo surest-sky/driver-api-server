@@ -79,9 +79,28 @@ export class AppointmentsController {
     return this.svc.reschedule(+id, req.user.sub, new Date(body.startTime), new Date(body.endTime), body.notes);
   }
 
+  // 学员更新备注（不能改时间）
+  @Patch(':id/notes')
+  @Roles('student')
+  async updateNotes(@Req() req: any, @Param('id') id: string, @Body() body: { notes: string }) {
+    return this.svc.updateNotes(+id, req.user.sub, body.notes);
+  }
+
+  // 评论列表
+  @Get(':id/comments')
+  async comments(@Req() req: any, @Param('id') id: string) {
+    return this.svc.listComments(+id, req.user.sub);
+  }
+
+  // 发表评论（学员/教练均可）
+  @Post(':id/comments')
+  async addComment(@Req() req: any, @Param('id') id: string, @Body() body: { content: string }) {
+    return this.svc.addComment(+id, req.user.sub, body.content);
+  }
+
   @Get('slots/day')
-  async slots(@Query('coachId') coachId: string, @Query('date') date: string) {
-    return this.svc.slots(+coachId, new Date(date));
+  async slots(@Req() req: any, @Query('coachId') coachId: string, @Query('date') date: string) {
+    return this.svc.slots(coachId, new Date(date), req.user.sub);
   }
 
   @Get('stats/me')

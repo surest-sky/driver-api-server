@@ -51,14 +51,18 @@ export class UsersController {
   @Roles('coach')
   async students(
     @Req() req: any,
-    @Query('schoolId') schoolId: string,
+    @Query('school_id') schoolId: string,
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '20',
     @Query('q') q?: string,
   ) {
     const p = Number(page) || 1;
     const ps = Number(pageSize) || 20;
-    const { items, total } = await this.users.listStudentsBySchool(+schoolId, p, ps, q);
+    const schoolIdNum = Number(schoolId);
+    if (!schoolIdNum || isNaN(schoolIdNum)) {
+      throw new Error('Invalid school_id parameter');
+    }
+    const { items, total } = await this.users.listStudentsBySchool(schoolIdNum, p, ps, q);
     return { items, total, page: p, pageSize: ps };
   }
 
@@ -88,5 +92,104 @@ export class UsersController {
 
     const student = await this.users.createUser(userData);
     return student;
+  }
+
+  @Get('dashboard')
+  @UseGuards(RolesGuard)
+  @Roles('coach')
+  async getDashboard(@Req() req: any) {
+    const schoolId = req.user.schoolId;
+    const coachId = req.user.sub;
+
+    // 获取学员总数
+    const { total: totalStudents } = await this.users.listStudentsBySchool(schoolId, 1, 1000);
+
+    // 获取今日活跃学员数(简化版，实际应该从学习记录中统计)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const activeStudentsToday = Math.floor(totalStudents * 0.3); // 模拟30%活跃率
+
+    // 获取本周新增学员(简化版)
+    const newStudentsThisWeek = Math.floor(totalStudents * 0.05); // 模拟5%增长率
+
+    // 模拟其他统计数据
+    const completionRate = 75.5; // 完成率75.5%
+    const averageStudyTime = 45; // 平均学习时长45分钟
+
+    return {
+      totalStudents,
+      activeStudentsToday,
+      newStudentsThisWeek,
+      completionRate,
+      averageStudyTime,
+      trends: {
+        students: [
+          { date: '2025-01-05', count: totalStudents - 6 },
+          { date: '2025-01-06', count: totalStudents - 5 },
+          { date: '2025-01-07', count: totalStudents - 3 },
+          { date: '2025-01-08', count: totalStudents - 2 },
+          { date: '2025-01-09', count: totalStudents - 1 },
+          { date: '2025-01-10', count: totalStudents },
+          { date: '2025-01-11', count: totalStudents + 1 },
+        ],
+        activity: [
+          { date: '2025-01-05', active: Math.floor(activeStudentsToday * 0.8) },
+          { date: '2025-01-06', active: Math.floor(activeStudentsToday * 0.9) },
+          { date: '2025-01-07', active: Math.floor(activeStudentsToday * 1.1) },
+          { date: '2025-01-08', active: Math.floor(activeStudentsToday * 0.7) },
+          { date: '2025-01-09', active: Math.floor(activeStudentsToday * 1.2) },
+          { date: '2025-01-10', active: activeStudentsToday },
+          { date: '2025-01-11', active: Math.floor(activeStudentsToday * 1.1) },
+        ]
+      }
+    };
+  }
+
+  @Get('stats')
+  @UseGuards(RolesGuard)
+  @Roles('coach')
+  async getStats(
+    @Req() req: any,
+    @Query('period') period = 'week'
+  ) {
+    const schoolId = req.user.schoolId;
+    
+    // 获取基础统计数据
+    const { total: totalStudents } = await this.users.listStudentsBySchool(schoolId, 1, 1000);
+    
+    // 模拟不同时间周期的数据
+    let periodData;
+    switch (period) {
+      case 'day':
+        periodData = {
+          activeStudents: Math.floor(totalStudents * 0.25),
+          newRegistrations: Math.floor(totalStudents * 0.01),
+          completionRate: 72.3,
+          studyTime: 38
+        };
+        break;
+      case 'month':
+        periodData = {
+          activeStudents: Math.floor(totalStudents * 0.85),
+          newRegistrations: Math.floor(totalStudents * 0.15),
+          completionRate: 78.2,
+          studyTime: 52
+        };
+        break;
+      default: // week
+        periodData = {
+          activeStudents: Math.floor(totalStudents * 0.65),
+          newRegistrations: Math.floor(totalStudents * 0.05),
+          completionRate: 75.5,
+          studyTime: 45
+        };
+    }
+
+    return {
+      period,
+      totalStudents,
+      ...periodData,
+      lastUpdated: new Date().toISOString()
+    };
   }
 }

@@ -23,6 +23,36 @@ CREATE TABLE `appointments` (
   CONSTRAINT `appointments_ibfk_2` FOREIGN KEY (`coach_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='训练预约表'
 
+-- 个人不可用时间表
+CREATE TABLE IF NOT EXISTS `availability` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `start_time` datetime NOT NULL COMMENT '开始时间',
+  `end_time` datetime NOT NULL COMMENT '结束时间',
+  `repeat` enum('always','once') NOT NULL DEFAULT 'always' COMMENT '重复频率',
+  `is_unavailable` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否不可用',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_availability_user` (`user_id`),
+  KEY `idx_availability_time` (`start_time`,`end_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='个人不可用时间'
+
+-- 约课评论表
+CREATE TABLE IF NOT EXISTS `appointment_comments` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '评论ID',
+  `appointment_id` bigint NOT NULL COMMENT '约课ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `user_name` varchar(191) NOT NULL COMMENT '用户名',
+  `role` varchar(32) NOT NULL COMMENT '角色：student/coach',
+  `content` text NOT NULL COMMENT '评论内容',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_comment_appointment` (`appointment_id`),
+  KEY `idx_comment_user` (`user_id`),
+  CONSTRAINT `fk_comment_appointment` FOREIGN KEY (`appointment_id`) REFERENCES `appointments`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='约课评论表';
+
 CREATE TABLE `conversations` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '对话唯一标识符',
   `participant1_id` bigint NOT NULL COMMENT '参与者1的ID，外键关联users表',
@@ -171,4 +201,3 @@ CREATE TABLE `users` (
   KEY `idx_users_role` (`role`),
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户信息表'
-

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { MessagesService } from './messages.service';
+import { ChatGateway } from './chat.gateway';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Message } from './message.entity';
@@ -12,6 +13,7 @@ import { UsersService } from '../users/users.service';
 export class MessagesController {
   constructor(
     private readonly svc: MessagesService,
+    private readonly chatGateway: ChatGateway,
     @InjectRepository(Message) private readonly msgRepo: Repository<Message>,
     @InjectRepository(Conversation) private readonly convRepo: Repository<Conversation>,
     private readonly users: UsersService,
@@ -86,5 +88,28 @@ export class MessagesController {
     if (!student || !coach) throw new Error('user not found');
     const conv = await this.svc.getOrCreateConversation(student.id, student.name, coach.id, coach.name);
     return conv;
+  }
+
+  @Get('online-status')
+  async getOnlineStatus(@Query('userIds') userIds?: string) {
+    const ids = userIds ? userIds.split(',').map(id => parseInt(id)) : [];
+    const onlineUserIds = this.chatGateway.getOnlineUsers();
+    
+    const status: Record<string, boolean> = {};
+    for (const id of ids) {
+      status[id.toString()] = onlineUserIds.includes(id);
+    }
+    
+    return {
+      onlineUsers: onlineUserIds,
+      userStatus: status,
+    };
+  }
+
+  @Post('notify/:conversationId')
+  async notifyMessage(@Param('conversationId') conversationId: string, @Body() messageData: any) {
+    // 用于外部服务推送消息通知
+    await this.chatGateway.notifyNewMessage(conversationId, messageData);
+    return { success: true };
   }
 }

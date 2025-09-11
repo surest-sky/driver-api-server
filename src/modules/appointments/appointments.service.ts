@@ -1,16 +1,20 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Between, MoreThanOrEqual, LessThanOrEqual, Repository } from 'typeorm';
+import { Between, MoreThanOrEqual, Repository } from 'typeorm';
 import { Appointment, AppointmentStatus, AppointmentType } from './appointment.entity';
+import { AppointmentCommentEntity } from './appointment-comment.entity';
 import { UsersService } from '../users/users.service';
+import { Availability } from '../availability/availability.entity';
+import { InjectRepository } from '@nestjs/typeorm';
 import { MessagesService } from '../messages/messages.service';
 
 @Injectable()
 export class AppointmentsService {
   constructor(
     @InjectRepository(Appointment) private readonly repo: Repository<Appointment>,
+    @InjectRepository(AppointmentCommentEntity) private readonly commentRepo: Repository<AppointmentCommentEntity>,
     private readonly users: UsersService,
     private readonly messages: MessagesService,
+    @InjectRepository(Availability) private readonly availabilityRepo: Repository<Availability>,
   ) {}
 
   async listForUser(userId: number, role: 'student' | 'coach', from?: Date, to?: Date, status?: AppointmentStatus) {
@@ -214,18 +218,73 @@ export class AppointmentsService {
     return saved;
   }
 
-  async slots(coachId: number, date: Date) {
+  async updateNotes(id: number, userId: number, notes: string) {
+    const a = await this.repo.findOne({ where: { id } });
+    if (!a) throw new NotFoundException('预约不存在');
+    // 仅学员可改备注，且预约属于该学员
+    if (a.studentId !== userId) throw new ForbiddenException('仅学员可更新备注');
+    if (a.status === AppointmentStatus.completed) throw new BadRequestException('已完成不可修改备注');
+    a.notes = notes;
+    return this.repo.save(a);
+  }
+
+  async listComments(appointmentId: number, userId: number) {
+    const a = await this.repo.findOne({ where: { id: appointmentId } });
+    if (!a) throw new NotFoundException('预约不存在');
+    if (a.studentId !== userId && a.coachId !== userId) throw new ForbiddenException();
+    return this.commentRepo.find({ where: { appointmentId }, order: { createdAt: 'DESC' } as any });
+  }
+
+  async addComment(appointmentId: number, userId: number, content: string) {
+    const a = await this.repo.findOne({ where: { id: appointmentId }, relations: ['student', 'coach'] });
+    if (!a) throw new NotFoundException('预约不存在');
+    if (a.studentId !== userId && a.coachId !== userId) throw new ForbiddenException();
+    const role: 'student'|'coach' = a.studentId === userId ? 'student' : 'coach';
+    const userName = role === 'student' ? a.student.name : a.coach.name;
+    const c = this.commentRepo.create({ appointmentId, userId, userName, role, content });
+    return this.commentRepo.save(c);
+  }
+
+  async slots(coachIdInput: string, date: Date, currentUserId: number) {
+    // 解析教练ID：支持 'auto' 或 具体ID
+    let coachId: number | undefined;
+    if (!coachIdInput || coachIdInput === 'auto' || coachIdInput === 'school_admin') {
+      const coach = await this.users.getCoachForStudent(currentUserId);
+      if (coach) coachId = coach.id;
+    } else {
+      coachId = +coachIdInput;
+    }
+    if (!coachId) throw new BadRequestException('未找到可用教练');
+
     const start = new Date(date); start.setHours(0,0,0,0);
     const end = new Date(date); end.setHours(23,59,59,999);
+
+    // 当日预约
     const dayApps = await this.repo.find({ where: { coachId, startTime: Between(start, end), status: MoreThanOrEqual('pending') as any }, order: { startTime: 'ASC' } });
+    // 个人不可用时间（教练）
+    const availAll = await this.availabilityRepo.find({ where: { userId: coachId } });
+
     const slots: { startTime: string; endTime: string; isAvailable: boolean; reason?: string }[] = [];
     for (let h=9; h<18; h++) {
       for (let m=0; m<60; m+=30) {
         const s = new Date(date); s.setHours(h, m, 0, 0);
         const e = new Date(s.getTime() + 30*60000);
         const expired = s.getTime() < Date.now();
-        const conflict = dayApps.some(a => s < a.endTime && e > a.startTime && a.status !== AppointmentStatus.cancelled && a.status !== AppointmentStatus.rejected);
-        slots.push({ startTime: s.toISOString(), endTime: e.toISOString(), isAvailable: !expired && !conflict, reason: conflict ? '已被预约' : (expired ? '时间已过' : undefined) });
+        const conflictApp = dayApps.some(a => s < a.endTime && e > a.startTime && a.status !== AppointmentStatus.cancelled && a.status !== AppointmentStatus.rejected);
+        // 匹配个人不可用
+        const conflictUnavail = availAll.some(u => {
+          if (!u.isUnavailable) return false;
+          if (u.repeat === 'always') {
+            const us = new Date(s); us.setHours(u.startTime.getHours(), u.startTime.getMinutes(), 0, 0);
+            const ue = new Date(s); ue.setHours(u.endTime.getHours(), u.endTime.getMinutes(), 0, 0);
+            return s < ue && e > us;
+          } else {
+            const sameDay = u.startTime.getFullYear()===s.getFullYear() && u.startTime.getMonth()===s.getMonth() && u.startTime.getDate()===s.getDate();
+            return sameDay && (s < u.endTime && e > u.startTime);
+          }
+        });
+        const reason = conflictApp ? '已被预约' : (conflictUnavail ? '个人不可用' : (expired ? '时间已过' : undefined));
+        slots.push({ startTime: s.toISOString(), endTime: e.toISOString(), isAvailable: !expired && !conflictApp && !conflictUnavail, reason });
       }
     }
     return slots;
