@@ -82,13 +82,13 @@ export class LearningRecord {
   updatedAt!: Date;
 
   @Index(['student_id', 'created_at'])
-  static readonly studentTimeIndex!: any;
+  static readonly studentTimeIndex: any;
 
   @Index(['video_id', 'student_id'])
-  static readonly videoStudentIndex!: any;
+  static readonly videoStudentIndex: any;
 
   @Index(['school_id', 'created_at'])
-  static readonly schoolTimeIndex!: any;
+  static readonly schoolTimeIndex: any;
 }
 
 @Entity('learning_progress')
@@ -141,7 +141,7 @@ export class LearningProgress {
   updatedAt!: Date;
 
   @Index(['student_id', 'video_id'], { unique: true })
-  static readonly uniqueProgress!: any;
+  static readonly uniqueProgress: any;
 }
 
 @Entity('learning_achievements')
@@ -184,5 +184,5 @@ export class LearningAchievement {
   updatedAt!: Date;
 
   @Index(['student_id', 'achievement_type'])
-  static readonly studentAchievementIndex!: any;
+  static readonly studentAchievementIndex: any;
 }

@@ -6,7 +6,7 @@
   "scripts": {
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "dev": "bash scripts/dev-restart.sh",
+    "dev": "nest start --watch",
     "build": "nest build",
     "init-db": "ts-node -r tsconfig-paths/register src/init-db.ts",
     "lint": "eslint .",

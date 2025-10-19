@@ -89,10 +89,10 @@ export class TeachingStats {
   updatedAt!: Date;
 
   @Index(['coach_id', 'period', 'stat_date'], { unique: true })
-  static readonly uniqueCoachPeriodDate!: any;
+  static readonly uniqueCoachPeriodDate: any;
 
   @Index(['school_id', 'period', 'stat_date'])
-  static readonly schoolPeriodDateIndex!: any;
+  static readonly schoolPeriodDateIndex: any;
 }
 
 @Entity('school_stats')
@@ -171,7 +171,7 @@ export class SchoolStats {
   updatedAt!: Date;
 
   @Index(['school_id', 'period', 'stat_date'], { unique: true })
-  static readonly uniqueSchoolPeriodDate!: any;
+  static readonly uniqueSchoolPeriodDate: any;
 }
 
 @Entity('student_performance_stats')
@@ -240,11 +240,11 @@ export class StudentPerformanceStats {
   updatedAt!: Date;
 
   @Index(['student_id', 'period', 'stat_date'], { unique: true })
-  static readonly uniqueStudentPeriodDate!: any;
+  static readonly uniqueStudentPeriodDate: any;
 
   @Index(['coach_id', 'period', 'stat_date'])
-  static readonly coachPeriodDateIndex!: any;
+  static readonly coachPeriodDateIndex: any;
 
   @Index(['school_id', 'period', 'stat_date'])
-  static readonly schoolPeriodDateIndex!: any;
+  static readonly schoolPeriodDateIndex: any;
 }

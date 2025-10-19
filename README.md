@@ -18,12 +18,12 @@ Docker (one command):
   - Exposes MySQL at 33067 and API at 3007
   - Applies migrations in `migrations/` (e.g., 001_init.sql, 002_appointments.sql) automatically on start
 
-API base URL: `http://localhost:3007/api`
+API base URL: `http://localhost:3008/api`
 
 Static files
 
 - Upload endpoint: `POST /api/uploads` (form-data, key: `file`) → returns `{ url: "/static/<filename>" }`
-- Public static base: `http://localhost:3007/static/`
+- Public static base: `http://localhost:3008/static/`
 
 ## Endpoints
 

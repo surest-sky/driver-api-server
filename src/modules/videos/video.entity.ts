@@ -164,5 +164,5 @@ export class VideoInteraction {
   updatedAt!: Date;
 
   @Index(['video_id', 'user_id', 'type'], { unique: true })
-  static readonly uniqueInteraction!: any;
+  static readonly uniqueInteraction: any;
 }

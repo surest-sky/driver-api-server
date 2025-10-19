@@ -1,15 +1,180 @@
 {
-  "info": {"name": "Driver App API - Appointments", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"},
+  "info": {
+    "name": "Driver App API - Appointments",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
   "item": [
-    {"name":"Create (student)","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":{"raw":"http://localhost:3007/api/appointments","protocol":"http","host":["localhost"],"port":"3007","path":["api","appointments"]},"body":{"mode":"raw","raw":"{\n  \"coachId\": \"coach_001\",\n  \"startTime\": \"2025-01-10T09:00:00.000Z\",\n  \"endTime\": \"2025-01-10T10:00:00.000Z\"\n}"}},"response":[]},
-    {"name":"My (student)","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":{"raw":"http://localhost:3007/api/appointments/me?role=student","protocol":"http","host":["localhost"],"port":"3007","path":["api","appointments","me"],"query":[{"key":"role","value":"student"}]}},"response":[]},
-    {"name":"Slots","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":{"raw":"http://localhost:3007/api/appointments/slots/day?coachId=coach_001&date=2025-01-10","protocol":"http","host":["localhost"],"port":"3007","path":["api","appointments","slots","day"],"query":[{"key":"coachId","value":"coach_001"},{"key":"date","value":"2025-01-10"}]}},"response":[]}
-    ,{"name":"Confirm (coach)","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":{"raw":"http://localhost:3007/api/appointments/:id/confirm","protocol":"http","host":["localhost"],"port":"3007","path":["api","appointments",":id","confirm"]},"body":{"mode":"raw","raw":"{\n  \"coachNotes\": \"OK\"\n}"}},"response":[]}
-    ,{"name":"Reject (coach)","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":{"raw":"http://localhost:3007/api/appointments/:id/reject","protocol":"http","host":["localhost"],"port":"3007","path":["api","appointments",":id","reject"]},"body":{"mode":"raw","raw":"{\n  \"reason\": \"时间冲突\"\n}"}},"response":[]}
-    ,{"name":"Cancel (student/coach)","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":{"raw":"http://localhost:3007/api/appointments/:id/cancel","protocol":"http","host":["localhost"],"port":"3007","path":["api","appointments",":id","cancel"]},"body":{"mode":"raw","raw":"{\n  \"notes\": \"有事改期\"\n}"}},"response":[]}
-    ,{"name":"Complete (coach)","request":{"method":"POST","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":{"raw":"http://localhost:3007/api/appointments/:id/complete","protocol":"http","host":["localhost"],"port":"3007","path":["api","appointments",":id","complete"]},"body":{"mode":"raw","raw":"{\n  \"coachNotes\": \"表现良好\"\n}"}},"response":[]}
-    ,{"name":"Reschedule (coach)","request":{"method":"PATCH","header":[{"key":"Authorization","value":"Bearer {{token}}"},{"key":"Content-Type","value":"application/json"}],"url":{"raw":"http://localhost:3007/api/appointments/:id/reschedule","protocol":"http","host":["localhost"],"port":"3007","path":["api","appointments",":id","reschedule"]},"body":{"mode":"raw","raw":"{\n  \"startTime\": \"2025-01-10T11:00:00.000Z\",\n  \"endTime\": \"2025-01-10T12:00:00.000Z\"\n}"}},"response":[]}
-    ,{"name":"Stats (student)","request":{"method":"GET","header":[{"key":"Authorization","value":"Bearer {{token}}"}],"url":{"raw":"http://localhost:3007/api/appointments/stats/me?role=student","protocol":"http","host":["localhost"],"port":"3007","path":["api","appointments","stats","me"],"query":[{"key":"role","value":"student"}]}},"response":[]}
+    {
+      "name": "Create (student)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://localhost:3008/api/appointments",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3007",
+          "path": ["api", "appointments"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"coachId\": \"coach_001\",\n  \"startTime\": \"2025-01-10T09:00:00.000Z\",\n  \"endTime\": \"2025-01-10T10:00:00.000Z\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "My (student)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "http://localhost:3008/api/appointments/me?role=student",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3007",
+          "path": ["api", "appointments", "me"],
+          "query": [{ "key": "role", "value": "student" }]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Slots",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "http://localhost:3008/api/appointments/slots/day?coachId=coach_001&date=2025-01-10",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3007",
+          "path": ["api", "appointments", "slots", "day"],
+          "query": [
+            { "key": "coachId", "value": "coach_001" },
+            { "key": "date", "value": "2025-01-10" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Confirm (coach)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://localhost:3008/api/appointments/:id/confirm",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3007",
+          "path": ["api", "appointments", ":id", "confirm"]
+        },
+        "body": { "mode": "raw", "raw": "{\n  \"coachNotes\": \"OK\"\n}" }
+      },
+      "response": []
+    },
+    {
+      "name": "Reject (coach)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://localhost:3008/api/appointments/:id/reject",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3007",
+          "path": ["api", "appointments", ":id", "reject"]
+        },
+        "body": { "mode": "raw", "raw": "{\n  \"reason\": \"时间冲突\"\n}" }
+      },
+      "response": []
+    },
+    {
+      "name": "Cancel (student/coach)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://localhost:3008/api/appointments/:id/cancel",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3007",
+          "path": ["api", "appointments", ":id", "cancel"]
+        },
+        "body": { "mode": "raw", "raw": "{\n  \"notes\": \"有事改期\"\n}" }
+      },
+      "response": []
+    },
+    {
+      "name": "Complete (coach)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://localhost:3008/api/appointments/:id/complete",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3007",
+          "path": ["api", "appointments", ":id", "complete"]
+        },
+        "body": { "mode": "raw", "raw": "{\n  \"coachNotes\": \"表现良好\"\n}" }
+      },
+      "response": []
+    },
+    {
+      "name": "Reschedule (coach)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "http://localhost:3008/api/appointments/:id/reschedule",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3007",
+          "path": ["api", "appointments", ":id", "reschedule"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"startTime\": \"2025-01-10T11:00:00.000Z\",\n  \"endTime\": \"2025-01-10T12:00:00.000Z\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Stats (student)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "http://localhost:3008/api/appointments/stats/me?role=student",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3007",
+          "path": ["api", "appointments", "stats", "me"],
+          "query": [{ "key": "role", "value": "student" }]
+        }
+      },
+      "response": []
+    }
   ],
-  "variable": [{"key":"token","value":""}]
+  "variable": [{ "key": "token", "value": "" }]
 }
