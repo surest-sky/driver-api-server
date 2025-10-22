@@ -6,8 +6,9 @@ NestJS API for the Driver App. Implements JWT auth and endpoints to replace the 
 
 - Copy `.env.example` to `.env` and adjust if needed (defaults match provided MySQL):
   - host: 127.0.0.1, port: 33067, user: root, pass: 12345, db: driver_app
+  - 若使用本地 docker 容器 `mysql81`，连接信息为 `port=3306, user=root, pass=123456`
 - Create schema & seed:
-  - Execute SQL: `migrations/001_init.sql` against `driver_app`
+  - `npm run init-db` （会依次执行 `sql/*.sql`，包括新增加的 `app_updates` 表及示例数据）
 - Install deps and run (requires Node 18+):
   - `npm i`
   - `npm run start:dev`
@@ -59,6 +60,12 @@ Schools (coach)
 
 - GET `/api/schools/me`
 - PATCH `/api/schools/me` { name?, logoUrl?, bannerUrl? }
+
+App Updates
+
+- GET `/api/app-updates/check?platform=ios&currentVersion=1.0.0&currentBuild=1`
+  - `platform`: `ios` 或 `android`
+  - 返回 `{ hasUpdate, forceUpdate, latest: { version, buildNumber, versionCode, downloadUrl, releaseNotes } }`
 
 ## Notes
 

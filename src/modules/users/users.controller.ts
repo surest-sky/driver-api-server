@@ -27,6 +27,11 @@ class CreateStudentDto {
   birthDate?: string; // ISO date
 }
 
+class BindSchoolDto {
+  @IsNotEmpty()
+  drivingSchoolCode!: string;
+}
+
 @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
@@ -35,14 +40,44 @@ export class UsersController {
   @Get('me')
   async me(@Req() req: any) {
     const user = await this.users.findById(req.user.sub);
-    return user;
+
+    // 确保返回的日期格式正确
+    const response: any = { ...user };
+    if (response.birthDate) {
+      response.birthDate = response.birthDate.toISOString().split('T')[0];
+    }
+
+    return response;
   }
 
   @Patch('me')
   async update(@Req() req: any, @Body() dto: UpdateProfileDto) {
     const patch: any = { ...dto };
-    if (dto.birthDate) patch.birthDate = new Date(dto.birthDate);
+    if (dto.birthDate) {
+      // 处理日期格式，确保正确解析
+      const birthDate = new Date(dto.birthDate);
+      // 验证日期是否有效
+      if (isNaN(birthDate.getTime())) {
+        throw new Error('Invalid birthDate format');
+      }
+      // 设置为UTC时间中午，避免时区问题
+      birthDate.setUTCHours(12, 0, 0, 0);
+      patch.birthDate = birthDate;
+    }
     const updated = await this.users.updateUser(req.user.sub, patch);
+
+    // 确保返回的日期格式正确
+    const response: any = { ...updated };
+    if (response.birthDate) {
+      response.birthDate = response.birthDate.toISOString().split('T')[0];
+    }
+
+    return response;
+  }
+
+  @Post('me/bind-school')
+  async bindSchool(@Req() req: any, @Body() dto: BindSchoolDto) {
+    const updated = await this.users.bindSchoolToUser(req.user.sub, dto.drivingSchoolCode);
     return updated;
   }
 

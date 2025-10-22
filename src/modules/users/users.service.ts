@@ -1,14 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './user.entity';
 import { StudentCoachRelation, RelationStatus } from './student-coach-relation.entity';
+import { School } from '../schools/school.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User) private readonly repo: Repository<User>,
-    @InjectRepository(StudentCoachRelation) private readonly relationRepo: Repository<StudentCoachRelation>
+    @InjectRepository(StudentCoachRelation) private readonly relationRepo: Repository<StudentCoachRelation>,
+    @InjectRepository(School) private readonly schoolRepo: Repository<School>
   ) {}
 
   findByEmail(email: string) {
@@ -64,19 +66,39 @@ export class UsersService {
     const existing = await this.relationRepo.findOne({
       where: { studentId, coachId }
     });
-    
+
     if (existing) {
       existing.status = RelationStatus.active;
       return this.relationRepo.save(existing);
     }
-    
+
     const relation = this.relationRepo.create({
       studentId,
       coachId,
       status: RelationStatus.active
     });
-    
+
     return this.relationRepo.save(relation);
+  }
+
+  async bindSchoolToUser(userId: number, drivingSchoolCode: string) {
+    // 查找学校
+    const school = await this.schoolRepo.findOne({
+      where: { drivingSchoolCode: drivingSchoolCode.trim().toUpperCase() }
+    });
+
+    if (!school) {
+      throw new BadRequestException('驾校代码不存在');
+    }
+
+    // 更新用户的学校绑定
+    await this.repo.update({ id: userId }, {
+      schoolId: school.id,
+      pendingSchoolCode: null  // 清除待定学校代码
+    });
+
+    // 返回更新后的用户信息（包含学校关联）
+    return this.findById(userId);
   }
 }
 

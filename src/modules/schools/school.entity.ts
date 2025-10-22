@@ -16,6 +16,9 @@ export class School {
   @Column({ type: 'varchar', length: 255, nullable: true, name: 'logo_url' })
   logoUrl!: string | null;
 
+  @Column({ type: 'varchar', length: 255, nullable: true, name: 'driving_school_code' })
+  drivingSchoolCode!: string | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true, name: 'banner_url' })
   bannerUrl!: string | null;
 
@@ -28,4 +31,3 @@ export class School {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
 }
-

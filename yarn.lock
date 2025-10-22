@@ -1306,9 +1306,9 @@ cross-spawn@^7.0.2, cross-spawn@^7.0.6:
     shebang-command "^2.0.0"
     which "^2.0.1"
 
-dayjs@^1.11.13:
+dayjs@^1.11.13, dayjs@^1.11.18:
   version "1.11.18"
-  resolved "https://registry.npmmirror.com/dayjs/-/dayjs-1.11.18.tgz"
+  resolved "https://registry.npmjs.org/dayjs/-/dayjs-1.11.18.tgz"
   integrity sha512-zFBQ7WFRvVRhKcWoUh+ZA1g2HVgUbsZm9sbddh8EC5iv93sui8DVVz1Npvz+r6meo9VKfa8NyLWBsQK1VvIKPA==
 
 debug@^4.3.1, debug@^4.3.2, debug@^4.4.0, debug@4:

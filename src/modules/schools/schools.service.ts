@@ -42,5 +42,8 @@ export class SchoolsService {
       backgroundImageUrl: updated?.bannerUrl,
     };
   }
-}
 
+  findByDrivingSchoolCode(code: string) {
+    return this.repo.findOne({ where: { drivingSchoolCode: code } });
+  }
+}

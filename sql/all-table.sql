@@ -201,3 +201,20 @@ CREATE TABLE `users` (
   CONSTRAINT `users_ibfk_1` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户信息表'
 
+
+CREATE TABLE IF NOT EXISTS `app_updates` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '版本记录ID',
+  `platform` enum('ios','android') NOT NULL COMMENT '平台类型',
+  `version` varchar(32) NOT NULL COMMENT '语义化版本号',
+  `build_number` int NOT NULL DEFAULT '1' COMMENT '构建号（可用于展示）',
+  `version_code` int NOT NULL DEFAULT '1' COMMENT '版本号（用于比较）',
+  `download_url` varchar(512) NOT NULL COMMENT '下载地址',
+  `release_notes` text COMMENT '更新说明',
+  `force_update` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否强制更新',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否有效',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_app_updates_platform_version` (`platform`,`version_code`),
+  KEY `idx_app_updates_platform_created` (`platform`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='应用版本记录表';

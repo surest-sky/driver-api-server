@@ -6,10 +6,11 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { User } from '../users/user.entity';
 import { UsersModule } from '../users/users.module';
+import { School } from '../schools/school.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]), 
+    TypeOrmModule.forFeature([User, School]), 
     UsersModule, 
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -24,4 +25,3 @@ import { UsersModule } from '../users/users.module';
   controllers: [AuthController],
 })
 export class AuthModule {}
-

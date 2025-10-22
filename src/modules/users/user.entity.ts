@@ -22,6 +22,9 @@ export class User {
   @Column({ type: 'varchar', length: 191, default: '' })
   name!: string;
 
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  phone!: string | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true, name: 'avatar_url' })
   avatarUrl!: string | null;
 
@@ -33,6 +36,9 @@ export class User {
 
   @Column({ type: 'bigint', nullable: true, name: 'school_id' })
   schoolId!: number | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true, name: 'pending_school_code' })
+  pendingSchoolCode!: string | null;
 
   @ManyToOne(() => School)
   @JoinColumn({ name: 'school_id' })
@@ -52,4 +58,3 @@ export class User {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
 }
-

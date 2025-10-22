@@ -71,7 +71,8 @@ export class TeachingStatsService {
     );
 
     // 获取视频统计
-    const videoStats = await this.videosService.getVideoStats(schoolId, coachId);
+    // TODO: 实现 getVideoStats 方法
+    // const videoStats = await this.videosService.getVideoStats(schoolId, coachId);
 
     // 这里可以添加更多统计逻辑
     return {
@@ -79,8 +80,8 @@ export class TeachingStatsService {
       activeStudents: studentStats.activeStudents,
       newStudents: 0, // 需要计算新增学生
       videosCreated: 0, // 需要计算在该时间段创建的视频
-      totalVideoViews: videoStats.totalViews,
-      totalVideoLikes: videoStats.totalLikes,
+      totalVideoViews: 0, // videoStats.totalViews,
+      totalVideoLikes: 0, // videoStats.totalLikes,
       totalWatchTimeSeconds: studentStats.totalWatchTime,
       completedVideos: studentStats.completedVideos,
       averageCompletionRate: studentStats.averageCompletionRate,
@@ -119,7 +120,8 @@ export class TeachingStatsService {
       endDate
     );
 
-    const videoStats = await this.videosService.getVideoStats(schoolId);
+    // TODO: 实现 getVideoStats 方法
+    // const videoStats = await this.videosService.getVideoStats(schoolId);
 
     return {
       totalCoaches: 0, // 需要查询教练数量
@@ -127,10 +129,10 @@ export class TeachingStatsService {
       totalStudents: learningStats.totalStudents,
       activeStudents: learningStats.activeStudents,
       newStudents: 0,
-      totalVideos: videoStats.totalVideos,
+      totalVideos: 0, // videoStats.totalVideos,
       videosCreated: 0,
-      totalVideoViews: videoStats.totalViews,
-      totalVideoLikes: videoStats.totalLikes,
+      totalVideoViews: 0, // videoStats.totalViews,
+      totalVideoLikes: 0, // videoStats.totalLikes,
       totalWatchTimeSeconds: learningStats.totalWatchTime,
       completedVideos: learningStats.completedVideos,
       averageCompletionRate: learningStats.averageCompletionRate,

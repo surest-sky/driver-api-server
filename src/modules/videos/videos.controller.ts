@@ -1,279 +1,200 @@
-import { 
-  Body, 
-  Controller, 
-  Delete, 
-  Get, 
-  Param, 
-  Patch, 
-  Post, 
-  Query, 
-  Req, 
-  UploadedFile,
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Req,
   UseGuards,
-  UseInterceptors,
-  ParseIntPipe
+  ParseIntPipe,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { VideosService } from './videos.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
-import { Roles } from '../../common/roles.decorator';
-import { RolesGuard } from '../../common/roles.guard';
-import { VideoStatus, InteractionType } from './video.entity';
-import { IsNotEmpty, IsOptional, IsEnum, IsNumber, Min } from 'class-validator';
+import { VideoType } from './video.entity';
+import { IsNotEmpty, IsOptional, IsEnum, IsString, IsInt, Min } from 'class-validator';
 
 class CreateVideoDto {
   @IsNotEmpty()
+  @IsString()
   title!: string;
 
   @IsOptional()
+  @IsString()
   description?: string;
 
   @IsNotEmpty()
-  filePath!: string;
+  @IsString()
+  videoUrl!: string;
 
   @IsOptional()
-  thumbnailPath?: string;
+  @IsString()
+  thumbnailUrl?: string;
 
-  @IsNumber()
+  @IsInt()
   @Min(0)
-  durationSeconds!: number;
+  duration!: number;
+
+  @IsEnum(VideoType)
+  type!: VideoType;
 
   @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  tags?: string;
+
+  @IsOptional()
+  @IsInt()
   studentId?: number;
 
   @IsOptional()
-  notes?: string;
-
-  @IsOptional()
-  recordedAt?: string;
+  @IsInt()
+  coachId?: number;
 }
 
 class UpdateVideoDto {
   @IsOptional()
+  @IsString()
   title?: string;
 
   @IsOptional()
+  @IsString()
   description?: string;
 
   @IsOptional()
-  @IsEnum(VideoStatus)
-  status?: VideoStatus;
+  @IsString()
+  videoUrl?: string;
 
   @IsOptional()
+  @IsString()
+  thumbnailUrl?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  duration?: number;
+
+  @IsOptional()
+  @IsEnum(VideoType)
+  type?: VideoType;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  tags?: string;
+
+  @IsOptional()
+  @IsInt()
   studentId?: number;
 
   @IsOptional()
-  notes?: string;
+  @IsInt()
+  coachId?: number;
 
   @IsOptional()
-  isPublic?: boolean;
-
-  @IsOptional()
-  sortOrder?: number;
+  isPublished?: boolean;
 }
 
-class AddVideoNoteDto {
-  @IsNotEmpty()
-  content!: string;
-
-  @IsNumber()
-  @Min(0)
-  timestampSeconds!: number;
-}
-
-class VideoInteractionDto {
-  @IsEnum(InteractionType)
-  type!: InteractionType;
-}
-
-@UseGuards(JwtAuthGuard)
 @Controller('videos')
+@UseGuards(JwtAuthGuard)
 export class VideosController {
   constructor(private readonly videosService: VideosService) {}
-
-  @Post()
-  @UseGuards(RolesGuard)
-  @Roles('coach')
-  async createVideo(@Req() req: any, @Body() dto: CreateVideoDto) {
-    const videoData = {
-      ...dto,
-      coachId: req.user.sub,
-      schoolId: req.user.schoolId,
-      recordedAt: dto.recordedAt ? new Date(dto.recordedAt) : new Date(),
-    };
-
-    const video = await this.videosService.createVideo(videoData);
-    return video;
-  }
-
-  @Get()
-  async listVideos(
-    @Req() req: any,
-    @Query('school_id') schoolId: string,
-    @Query('coach_id') coachId?: string,
-    @Query('student_id') studentId?: string,
-    @Query('status') status?: VideoStatus,
-    @Query('search') search?: string,
-    @Query('sort_by') sortBy?: 'created_at' | 'sort_order' | 'view_count' | 'like_count',
-    @Query('sort_order') sortOrder?: 'ASC' | 'DESC',
-    @Query('page') page = '1',
-    @Query('page_size') pageSize = '20'
-  ) {
-    const schoolIdNum = Number(schoolId);
-    if (!schoolIdNum || isNaN(schoolIdNum)) {
-      throw new Error('Invalid school_id parameter');
-    }
-
-    const p = Number(page) || 1;
-    const ps = Number(pageSize) || 20;
-
-    const filters = {
-      coachId: coachId ? Number(coachId) : undefined,
-      studentId: studentId ? Number(studentId) : undefined,
-      status,
-      search,
-      sortBy,
-      sortOrder: sortOrder as 'ASC' | 'DESC'
-    };
-
-    const result = await this.videosService.listVideosBySchool(schoolIdNum, p, ps, filters);
-    return result;
-  }
 
   @Get('recommended')
   async getRecommendedVideos(
     @Req() req: any,
-    @Query('school_id') schoolId: string,
-    @Query('limit') limit = '10'
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
   ) {
-    const schoolIdNum = Number(schoolId);
-    if (!schoolIdNum || isNaN(schoolIdNum)) {
-      throw new Error('Invalid school_id parameter');
-    }
-
-    const limitNum = Number(limit) || 10;
+    const user = req.user;
     const videos = await this.videosService.getRecommendedVideos(
-      schoolIdNum,
-      req.user.sub,
-      limitNum
+      user.schoolId,
+      user.sub,
+      limit || 10,
     );
-    return videos;
+    return { videos };
   }
 
-  @Get('stats')
-  async getVideoStats(
+  @Get()
+  async getVideoList(
     @Req() req: any,
-    @Query('school_id') schoolId: string,
-    @Query('coach_id') coachId?: string
+    @Query('type') type?: VideoType,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
+    @Query('search') search?: string,
   ) {
-    const schoolIdNum = Number(schoolId);
-    if (!schoolIdNum || isNaN(schoolIdNum)) {
-      throw new Error('Invalid school_id parameter');
+    const user = req.user;
+
+    if (type) {
+      return this.videosService.getVideosByType(
+        user.schoolId,
+        type,
+        page || 1,
+        pageSize || 20,
+        search,
+      );
     }
 
-    const coachIdNum = coachId ? Number(coachId) : undefined;
-    const stats = await this.videosService.getVideoStats(schoolIdNum, coachIdNum);
-    return stats;
+    if (search) {
+      return this.videosService.searchVideos(
+        user.schoolId,
+        search,
+        undefined,
+        page || 1,
+        pageSize || 20,
+      );
+    }
+
+    // 默认返回所有教学视频
+    return this.videosService.getVideosByType(
+      user.schoolId,
+      VideoType.teaching,
+      page || 1,
+      pageSize || 20,
+    );
   }
 
   @Get(':id')
-  async getVideo(@Param('id', ParseIntPipe) id: number) {
-    const video = await this.videosService.findById(id);
-    if (!video) {
-      throw new Error('Video not found');
-    }
-    return video;
-  }
-
-  @Patch(':id')
-  @UseGuards(RolesGuard)
-  @Roles('coach')
-  async updateVideo(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateVideoDto
-  ) {
-    const video = await this.videosService.updateVideo(id, dto);
-    if (!video) {
-      throw new Error('Video not found');
-    }
-    return video;
-  }
-
-  @Delete(':id')
-  @UseGuards(RolesGuard)
-  @Roles('coach')
-  async deleteVideo(@Param('id', ParseIntPipe) id: number) {
-    const success = await this.videosService.deleteVideo(id);
-    if (!success) {
-      throw new Error('Video not found');
-    }
-    return { message: 'Video deleted successfully' };
-  }
-
-  @Post(':id/notes')
-  async addVideoNote(
-    @Req() req: any,
-    @Param('id', ParseIntPipe) videoId: number,
-    @Body() dto: AddVideoNoteDto
-  ) {
-    const note = await this.videosService.addVideoNote(
-      videoId,
-      req.user.sub,
-      dto.content,
-      dto.timestampSeconds
-    );
-    return note;
-  }
-
-  @Get(':id/notes')
-  async getVideoNotes(@Param('id', ParseIntPipe) videoId: number) {
-    const notes = await this.videosService.getVideoNotes(videoId);
-    return notes;
-  }
-
-  @Delete('notes/:noteId')
-  async deleteVideoNote(
-    @Req() req: any,
-    @Param('noteId', ParseIntPipe) noteId: number
-  ) {
-    const success = await this.videosService.deleteVideoNote(noteId, req.user.sub);
-    if (!success) {
-      throw new Error('Note not found or permission denied');
-    }
-    return { message: 'Note deleted successfully' };
-  }
-
-  @Post(':id/interactions')
-  async toggleInteraction(
-    @Req() req: any,
-    @Param('id', ParseIntPipe) videoId: number,
-    @Body() dto: VideoInteractionDto
-  ) {
-    const isActive = await this.videosService.toggleInteraction(
-      videoId,
-      req.user.sub,
-      dto.type
-    );
-    return { type: dto.type, active: isActive };
+  async getVideoDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.videosService.getVideoDetail(id);
   }
 
   @Post(':id/view')
-  async recordView(@Param('id', ParseIntPipe) videoId: number) {
-    await this.videosService.incrementViewCount(videoId);
-    return { message: 'View recorded' };
+  async recordView(@Param('id', ParseIntPipe) id: number) {
+    await this.videosService.incrementViewCount(id);
+    return { message: '观看记录已更新' };
   }
 
-  @Patch(':id/sort-order')
-  @UseGuards(RolesGuard)
-  @Roles('coach')
-  async updateSortOrder(
-    @Param('id', ParseIntPipe) videoId: number,
-    @Body('sortOrder') sortOrder: number
-  ) {
-    const video = await this.videosService.updateSortOrder(videoId, sortOrder);
-    if (!video) {
-      throw new Error('Video not found');
-    }
+  @Post()
+  async createVideo(@Req() req: any, @Body() dto: CreateVideoDto) {
+    const user = req.user;
+    const video = await this.videosService.createVideo({
+      ...dto,
+      schoolId: user.schoolId,
+      uploadedBy: user.sub,
+      isPublished: true,
+    });
     return video;
+  }
+
+  @Put(':id')
+  async updateVideo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateVideoDto,
+  ) {
+    return this.videosService.updateVideo(id, dto);
+  }
+
+  @Delete(':id')
+  async deleteVideo(@Param('id', ParseIntPipe) id: number) {
+    const success = await this.videosService.deleteVideo(id);
+    return { success, message: success ? '删除成功' : '删除失败' };
   }
 }
