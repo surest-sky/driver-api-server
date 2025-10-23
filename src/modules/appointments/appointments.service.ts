@@ -218,11 +218,27 @@ export class AppointmentsService {
     return saved;
   }
 
-  async updateNotes(id: number, userId: number, notes: string) {
-    const a = await this.repo.findOne({ where: { id } });
+  async updateNotes(
+    id: number,
+    user: { sub: number; role?: string; isManager?: boolean; schoolId?: number | null },
+    notes: string,
+  ) {
+    const a = await this.repo.findOne({ where: { id }, relations: ['student', 'coach'] });
     if (!a) throw new NotFoundException('预约不存在');
-    // 仅学员可改备注，且预约属于该学员
-    if (a.studentId !== userId) throw new ForbiddenException('仅学员可更新备注');
+
+    const userId = user.sub;
+    const isStudent = a.studentId === userId;
+    const isCoach = a.coachId === userId;
+    const isManagerSameSchool = Boolean(user.isManager) &&
+      user.schoolId != null &&
+      !!(
+        (a.student?.schoolId && a.student.schoolId === user.schoolId) ||
+        (a.coach?.schoolId && a.coach.schoolId === user.schoolId)
+      );
+
+    if (!isStudent && !isCoach && !isManagerSameSchool) {
+      throw new ForbiddenException('无权更新备注');
+    }
     if (a.status === AppointmentStatus.completed) throw new BadRequestException('已完成不可修改备注');
     a.notes = notes;
     return this.repo.save(a);

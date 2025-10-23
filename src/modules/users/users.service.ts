@@ -31,17 +31,32 @@ export class UsersService {
     return this.findById(id);
   }
 
-  async listStudentsBySchool(schoolId: number, page: number, pageSize: number, q?: string) {
+  async listCoachesBySchool(schoolId: number, page: number, pageSize: number, q?: string) {
     const qb = this.repo.createQueryBuilder('u')
-      .where('u.role = :role', { role: UserRole.student })
+      .where('u.role = :role', { role: UserRole.coach })
       .andWhere('u.schoolId = :schoolId', { schoolId })
-      .orderBy('u.name', 'ASC');
+      .orderBy('u.isManager', 'DESC')
+      .addOrderBy('u.updatedAt', 'DESC');
     if (q && q.trim()) {
       qb.andWhere('(u.name LIKE :q OR u.email LIKE :q)', { q: `%${q.trim()}%` });
     }
     qb.skip((page - 1) * pageSize).take(pageSize);
     const [items, total] = await qb.getManyAndCount();
     return { items, total };
+  }
+
+  async findCoachById(id: number) {
+    return this.repo.findOne({ where: { id, role: UserRole.coach }, relations: ['school'] });
+  }
+
+  async setManagerForSchool(schoolId: number, coachId: number) {
+    await this.repo.createQueryBuilder()
+      .update(User)
+      .set({ isManager: false })
+      .where('schoolId = :schoolId AND role = :role', { schoolId, role: UserRole.coach })
+      .execute();
+    await this.repo.update({ id: coachId }, { isManager: true });
+    return this.findCoachById(coachId);
   }
 
   async findCoachBySchoolId(schoolId: number) {
@@ -81,6 +96,28 @@ export class UsersService {
     return this.relationRepo.save(relation);
   }
 
+  async updateCoach(coachId: number, patch: Partial<User>) {
+    await this.repo.update({ id: coachId, role: UserRole.coach }, patch);
+    return this.findCoachById(coachId);
+  }
+
+  async listStudentsBySchool(schoolId: number, page: number, pageSize: number, q?: string) {
+    const qb = this.repo
+      .createQueryBuilder('u')
+      .where('u.role = :role', { role: UserRole.student })
+      .andWhere('u.schoolId = :schoolId', { schoolId })
+      .orderBy('u.updatedAt', 'DESC');
+
+    if (q && q.trim()) {
+      qb.andWhere('(u.name LIKE :q OR u.email LIKE :q)', { q: `%${q.trim()}%` });
+    }
+
+    qb.skip((page - 1) * pageSize).take(pageSize);
+
+    const [items, total] = await qb.getManyAndCount();
+    return { items, total };
+  }
+
   async bindSchoolToUser(userId: number, drivingSchoolCode: string) {
     // 查找学校
     const school = await this.schoolRepo.findOne({
@@ -101,4 +138,3 @@ export class UsersService {
     return this.findById(userId);
   }
 }
-

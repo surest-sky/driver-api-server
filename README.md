@@ -72,6 +72,12 @@ App Updates
 - Default test accounts: student@driveviewer.com / 123456, coach@driveviewer.com / 123456.
 - First login hashes the default password automatically if `passwordHash` is empty.
 - Extend guards/roles as needed (current guard validates JWT; role checks can be added per-route).
+- 提供预约巡检脚本 `npm run appointments:maintain`：运行后会将结束且状态为 `confirmed` 的课程标记为 `completed`，并自动取消超过 24 小时仍未确认或已过期的 `pending` 预约，双方均会收到系统通知。可通过环境变量 `APPOINTMENT_AUTO_COMPLETE_DELAY_MINUTES`、`APPOINTMENT_AUTO_COMPLETE_BATCH_SIZE` 与 `APPOINTMENT_AUTO_CANCEL_PENDING_MINUTES` 调整时间窗口与批量大小（支持 `APPOINTMENT_AUTO_COMPLETE_INTERVAL_MINUTES|MS` 作为外部调度参考）。
+- 上传模块支持 AWS S3 直传头像与视频：
+  - 头像：`POST /api/uploads/avatar/presign` 返回带签名的 PUT 地址，默认路径 `userId/avatars/...`。
+  - 视频：`POST /api/uploads/video/presign` 返回带签名的 PUT 地址，默认路径 `userId/video/<文件名-哈希>`。
+  需配置 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`、`AWS_S3_REGION`、`AWS_S3_BUCKET` 等环境变量，可按需设置公开域名、前缀与 ACL。
+- 自动任务同时会取消超时未确认的预约：默认 24 小时内未确认或已过期的 `pending` 预约会改为 `cancelled` 并向学员与教练发送系统通知。可通过 `APPOINTMENT_AUTO_CANCEL_PENDING_MINUTES` 调整阈值。
 
 ## Development
 

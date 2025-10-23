@@ -1,220 +1,496 @@
-CREATE TABLE `appointment_comments` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '评论ID',
-  `appointment_id` bigint NOT NULL COMMENT '约课ID',
-  `user_id` bigint NOT NULL COMMENT '用户ID',
-  `user_name` varchar(191) NOT NULL COMMENT '用户名',
-  `role` varchar(32) NOT NULL COMMENT '角色：student/coach',
-  `content` text NOT NULL COMMENT '评论内容',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_comment_appointment` (`appointment_id`),
-  KEY `idx_comment_user` (`user_id`),
-  CONSTRAINT `fk_comment_appointment` FOREIGN KEY (`appointment_id`) REFERENCES `appointments` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='约课评论表'
+create table driver_app.availability
+(
+    id             bigint auto_increment comment '主键'
+        primary key,
+    user_id        bigint                                            not null comment '用户ID',
+    start_time     datetime                                          not null comment '开始时间',
+    end_time       datetime                                          not null comment '结束时间',
+    `repeat`       enum ('always', 'once') default 'always'          not null comment '重复频率',
+    is_unavailable tinyint(1)              default 1                 not null comment '是否不可用',
+    created_at     datetime                default CURRENT_TIMESTAMP not null comment '创建时间',
+    updated_at     datetime                default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间'
+)
+    comment '个人不可用时间' charset = utf8mb4;
 
-CREATE TABLE `appointments` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '预约唯一标识符',
-  `student_id` bigint NOT NULL COMMENT '学员ID，外键关联users表',
-  `coach_id` bigint NOT NULL COMMENT '教练ID，外键关联users表',
-  `start_time` datetime NOT NULL COMMENT '预约开始时间',
-  `end_time` datetime NOT NULL COMMENT '预约结束时间',
-  `status` enum('pending','confirmed','rejected','cancelled','completed','no_show') NOT NULL DEFAULT 'pending' COMMENT '预约状态：待确认/已确认/已拒绝/已取消/已完成/缺席',
-  `type` enum('regular','trial','exam','makeup') NOT NULL DEFAULT 'regular' COMMENT '预约类型：常规训练/试学课程/考试/补课',
-  `location` varchar(191) DEFAULT NULL COMMENT '训练地点',
-  `notes` text COMMENT '预约备注信息',
-  `coach_notes` text COMMENT '教练备注',
-  `student_notes` text COMMENT '学员备注',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '预约创建时间',
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '预约更新时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_appointments_student_id` (`student_id`),
-  KEY `idx_appointments_coach_id` (`coach_id`),
-  KEY `idx_appointments_start_time` (`start_time`),
-  KEY `idx_appointments_end_time` (`end_time`),
-  KEY `idx_appointments_status` (`status`),
-  KEY `idx_appointments_time_range` (`start_time`,`end_time`),
-  CONSTRAINT `appointments_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `appointments_ibfk_2` FOREIGN KEY (`coach_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='训练预约表'
+create index idx_availability_time
+    on driver_app.availability (start_time, end_time);
 
-CREATE TABLE `availability` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `user_id` bigint NOT NULL COMMENT '用户ID',
-  `start_time` datetime NOT NULL COMMENT '开始时间',
-  `end_time` datetime NOT NULL COMMENT '结束时间',
-  `repeat` enum('always','once') NOT NULL DEFAULT 'always' COMMENT '重复频率',
-  `is_unavailable` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否不可用',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_availability_user` (`user_id`),
-  KEY `idx_availability_time` (`start_time`,`end_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='个人不可用时间'
+create index idx_availability_user
+    on driver_app.availability (user_id);
 
-CREATE TABLE `conversations` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '对话唯一标识符',
-  `participant1_id` bigint NOT NULL COMMENT '参与者1的ID，外键关联users表',
-  `participant1_name` varchar(191) NOT NULL COMMENT '参与者1姓名',
-  `participant2_id` bigint NOT NULL COMMENT '参与者2的ID，外键关联users表',
-  `participant2_name` varchar(191) NOT NULL COMMENT '参与者2姓名',
-  `last_message_at` datetime DEFAULT NULL COMMENT '最后一条消息时间',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_conversations_participant1` (`participant1_id`),
-  KEY `idx_conversations_participant2` (`participant2_id`),
-  KEY `idx_conversations_last_message` (`last_message_at`),
-  CONSTRAINT `conversations_ibfk_1` FOREIGN KEY (`participant1_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `conversations_ibfk_2` FOREIGN KEY (`participant2_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='对话会话表'
+create table driver_app.schools
+(
+    id                  bigint auto_increment comment '驾校唯一标识符'
+        primary key,
+    code                varchar(64)                        not null comment '驾校代码，用于识别不同驾校',
+    name                varchar(191)                       not null comment '驾校名称',
+    logo_url            varchar(255)                       null comment '驾校logo图片链接',
+    driving_school_code varchar(255)                       null comment '学校唯一码',
+    banner_url          varchar(255)                       null comment '驾校横幅图片链接',
+    created_at          datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updated_at          datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    constraint code
+        unique (code)
+)
+    comment '驾校信息表' charset = utf8mb4;
 
-CREATE TABLE `invites` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '邀请码唯一标识符',
-  `code` varchar(64) NOT NULL COMMENT '邀请码',
-  `inviter_id` bigint DEFAULT NULL COMMENT '邀请人ID，外键关联users表',
-  `invitee_email` varchar(191) NOT NULL COMMENT '被邀请人邮箱',
-  `school_id` bigint NOT NULL COMMENT '所属驾校ID，外键关联schools表',
-  `role` enum('student','coach') NOT NULL DEFAULT 'student' COMMENT '邀请角色：学员或教练',
-  `status` enum('pending','accepted','expired') NOT NULL DEFAULT 'pending' COMMENT '邀请状态：待接受/已接受/已过期',
-  `expires_at` datetime NOT NULL COMMENT '过期时间',
-  `used_at` datetime DEFAULT NULL COMMENT '使用时间',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `code` (`code`),
-  KEY `idx_invites_code` (`code`),
-  KEY `idx_invites_inviter_id` (`inviter_id`),
-  KEY `idx_invites_school_id` (`school_id`),
-  KEY `idx_invites_status` (`status`),
-  KEY `idx_invites_expires_at` (`expires_at`),
-  CONSTRAINT `invites_ibfk_1` FOREIGN KEY (`inviter_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `invites_ibfk_2` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='邀请码表'
+create table driver_app.users
+(
+    id                  bigint auto_increment comment '用户唯一标识符'
+        primary key,
+    email               varchar(191)                                        not null comment '用户邮箱，作为登录凭证',
+    password_hash       varchar(255)                                        null comment '密码哈希值，首次登录时为空',
+    name                varchar(191)              default ''                not null comment '用户姓名',
+    phone               varchar(32)                                         null,
+    avatar_url          varchar(255)                                        null comment '头像图片链接',
+    birth_date          date                                                null comment '出生日期',
+    role                enum ('student', 'coach') default 'student'         not null comment '用户角色：学员或教练',
+    is_manager          tinyint(1)                default 0                 not null,
+    school_id           bigint                                              null comment '所属驾校ID，外键关联schools表',
+    pending_school_code varchar(255)                                        null,
+    created_at          datetime                  default CURRENT_TIMESTAMP not null comment '创建时间',
+    updated_at          datetime                  default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    constraint email
+        unique (email),
+    constraint users_ibfk_1
+        foreign key (school_id) references driver_app.schools (id)
+            on update cascade on delete set null
+)
+    comment '用户信息表' charset = utf8mb4;
 
-CREATE TABLE `messages` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '消息唯一标识符',
-  `conversation_id` bigint NOT NULL COMMENT '所属对话ID，外键关联conversations表',
-  `sender_id` bigint NOT NULL COMMENT '发送者ID，外键关联users表',
-  `sender_name` varchar(191) NOT NULL COMMENT '发送者姓名',
-  `receiver_id` bigint NOT NULL COMMENT '接收者ID，外键关联users表',
-  `receiver_name` varchar(191) NOT NULL COMMENT '接收者姓名',
-  `content` text NOT NULL COMMENT '消息内容',
-  `message_type` enum('text','image','file','system') NOT NULL DEFAULT 'text' COMMENT '消息类型：文本/图片/文件/系统消息',
-  `read_at` datetime DEFAULT NULL COMMENT '阅读时间',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_messages_conversation_id` (`conversation_id`),
-  KEY `idx_messages_sender_id` (`sender_id`),
-  KEY `idx_messages_receiver_id` (`receiver_id`),
-  KEY `idx_messages_created_at` (`created_at`),
-  KEY `idx_messages_read_at` (`read_at`),
-  CONSTRAINT `messages_ibfk_1` FOREIGN KEY (`conversation_id`) REFERENCES `conversations` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `messages_ibfk_2` FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `messages_ibfk_3` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=48 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='消息表'
+create table driver_app.appointments
+(
+    id            bigint auto_increment comment '预约唯一标识符'
+        primary key,
+    student_id    bigint                                                                                                   not null comment '学员ID，外键关联users表',
+    coach_id      bigint                                                                                                   not null comment '教练ID，外键关联users表',
+    start_time    datetime                                                                                                 not null comment '预约开始时间',
+    end_time      datetime                                                                                                 not null comment '预约结束时间',
+    status        enum ('pending', 'confirmed', 'rejected', 'cancelled', 'completed', 'no_show') default 'pending'         not null comment '预约状态：待确认/已确认/已拒绝/已取消/已完成/缺席',
+    type          enum ('regular', 'trial', 'exam', 'makeup')                                    default 'regular'         not null comment '预约类型：常规训练/试学课程/考试/补课',
+    location      varchar(191)                                                                                             null comment '训练地点',
+    notes         text                                                                                                     null comment '预约备注信息',
+    coach_notes   text                                                                                                     null comment '教练备注',
+    student_notes text                                                                                                     null comment '学员备注',
+    created_at    datetime                                                                       default CURRENT_TIMESTAMP not null comment '预约创建时间',
+    updated_at    datetime                                                                       default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '预约更新时间',
+    constraint appointments_ibfk_1
+        foreign key (student_id) references driver_app.users (id)
+            on update cascade on delete cascade,
+    constraint appointments_ibfk_2
+        foreign key (coach_id) references driver_app.users (id)
+            on update cascade on delete cascade
+)
+    comment '训练预约表' charset = utf8mb4;
 
-CREATE TABLE `notifications` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '通知唯一标识符',
-  `user_id` bigint NOT NULL COMMENT '接收通知的用户ID，外键关联users表',
-  `title` varchar(191) NOT NULL COMMENT '通知标题',
-  `content` text NOT NULL COMMENT '通知内容',
-  `type` enum('appointment','system','message') NOT NULL DEFAULT 'system' COMMENT '通知类型：预约/系统/消息',
-  `read_at` datetime DEFAULT NULL COMMENT '阅读时间',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_notifications_user_id` (`user_id`),
-  KEY `idx_notifications_type` (`type`),
-  KEY `idx_notifications_created_at` (`created_at`),
-  KEY `idx_notifications_read_at` (`read_at`),
-  CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='通知消息表'
+create table driver_app.appointment_comments
+(
+    id             bigint auto_increment comment '评论ID'
+        primary key,
+    appointment_id bigint                             not null comment '约课ID',
+    user_id        bigint                             not null comment '用户ID',
+    user_name      varchar(191)                       not null comment '用户名',
+    role           varchar(32)                        not null comment '角色：student/coach',
+    content        text                               not null comment '评论内容',
+    created_at     datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    constraint fk_comment_appointment
+        foreign key (appointment_id) references driver_app.appointments (id)
+            on update cascade on delete cascade
+)
+    comment '约课评论表' charset = utf8mb4;
 
-CREATE TABLE `policies` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '规章制度唯一标识符',
-  `school_id` bigint NOT NULL COMMENT '所属驾校ID，外键关联schools表',
-  `title` varchar(191) NOT NULL COMMENT '规章标题',
-  `content` text NOT NULL COMMENT '规章内容',
-  `type` enum('rule','notice','announcement') NOT NULL DEFAULT 'rule' COMMENT '类型：规则/通知/公告',
-  `priority` enum('low','normal','high','urgent') NOT NULL DEFAULT 'normal' COMMENT '优先级：低/普通/高/紧急',
-  `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否有效',
-  `effective_date` date DEFAULT NULL COMMENT '生效日期',
-  `created_by` bigint DEFAULT NULL COMMENT '创建者ID，外键关联users表',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  KEY `created_by` (`created_by`),
-  KEY `idx_policies_school_id` (`school_id`),
-  KEY `idx_policies_type` (`type`),
-  KEY `idx_policies_priority` (`priority`),
-  KEY `idx_policies_is_active` (`is_active`),
-  KEY `idx_policies_effective_date` (`effective_date`),
-  CONSTRAINT `policies_ibfk_1` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `policies_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='驾校规章制度表'
+create index idx_comment_appointment
+    on driver_app.appointment_comments (appointment_id);
 
-CREATE TABLE `schools` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '驾校唯一标识符',
-  `code` varchar(64) NOT NULL COMMENT '驾校代码，用于识别不同驾校',
-  `name` varchar(191) NOT NULL COMMENT '驾校名称',
-  `logo_url` varchar(255) DEFAULT NULL COMMENT '驾校logo图片链接',
-  `driving_school_code` varchar(255) DEFAULT NULL COMMENT '学校唯一码',
-  `banner_url` varchar(255) DEFAULT NULL COMMENT '驾校横幅图片链接',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='驾校信息表'
+create index idx_comment_user
+    on driver_app.appointment_comments (user_id);
 
-CREATE TABLE `student_coach_relations` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '关联关系唯一标识符',
-  `student_id` bigint NOT NULL COMMENT '学员ID，外键关联users表',
-  `coach_id` bigint NOT NULL COMMENT '教练ID，外键关联users表',
-  `assigned_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '分配时间',
-  `status` enum('active','inactive') NOT NULL DEFAULT 'active' COMMENT '关系状态：激活/停用',
-  `notes` text COMMENT '备注信息',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `unique_student_coach` (`student_id`,`coach_id`),
-  KEY `idx_student_coach_student_id` (`student_id`),
-  KEY `idx_student_coach_coach_id` (`coach_id`),
-  KEY `idx_student_coach_status` (`status`),
-  CONSTRAINT `student_coach_relations_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `student_coach_relations_ibfk_2` FOREIGN KEY (`coach_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='学生-教练关联关系表'
+create index idx_appointments_coach_id
+    on driver_app.appointments (coach_id);
 
-CREATE TABLE `users` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '用户唯一标识符',
-  `email` varchar(191) NOT NULL COMMENT '用户邮箱，作为登录凭证',
-  `password_hash` varchar(255) DEFAULT NULL COMMENT '密码哈希值，首次登录时为空',
-  `name` varchar(191) NOT NULL DEFAULT '' COMMENT '用户姓名',
-  `avatar_url` varchar(255) DEFAULT NULL COMMENT '头像图片链接',
-  `birth_date` date DEFAULT NULL COMMENT '出生日期',
-  `role` enum('student','coach') NOT NULL DEFAULT 'student' COMMENT '用户角色：学员或教练',
-  `school_id` bigint DEFAULT NULL COMMENT '所属驾校ID，外键关联schools表',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `email` (`email`),
-  KEY `idx_users_email` (`email`),
-  KEY `idx_users_school_id` (`school_id`),
-  KEY `idx_users_role` (`role`),
-  CONSTRAINT `users_ibfk_1` FOREIGN KEY (`school_id`) REFERENCES `schools` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户信息表'
+create index idx_appointments_end_time
+    on driver_app.appointments (end_time);
 
+create index idx_appointments_start_time
+    on driver_app.appointments (start_time);
 
-CREATE TABLE IF NOT EXISTS `app_updates` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '版本记录ID',
-  `platform` enum('ios','android') NOT NULL COMMENT '平台类型',
-  `version` varchar(32) NOT NULL COMMENT '语义化版本号',
-  `build_number` int NOT NULL DEFAULT '1' COMMENT '构建号（可用于展示）',
-  `version_code` int NOT NULL DEFAULT '1' COMMENT '版本号（用于比较）',
-  `download_url` varchar(512) NOT NULL COMMENT '下载地址',
-  `release_notes` text COMMENT '更新说明',
-  `force_update` tinyint(1) NOT NULL DEFAULT '0' COMMENT '是否强制更新',
-  `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT '是否有效',
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  KEY `idx_app_updates_platform_version` (`platform`,`version_code`),
-  KEY `idx_app_updates_platform_created` (`platform`,`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='应用版本记录表';
+create index idx_appointments_status
+    on driver_app.appointments (status);
+
+create index idx_appointments_student_id
+    on driver_app.appointments (student_id);
+
+create index idx_appointments_time_range
+    on driver_app.appointments (start_time, end_time);
+
+create table driver_app.conversations
+(
+    id                bigint auto_increment comment '对话唯一标识符'
+        primary key,
+    participant1_id   bigint                             not null comment '参与者1的ID，外键关联users表',
+    participant1_name varchar(191)                       not null comment '参与者1姓名',
+    participant2_id   bigint                             not null comment '参与者2的ID，外键关联users表',
+    participant2_name varchar(191)                       not null comment '参与者2姓名',
+    last_message_at   datetime                           null comment '最后一条消息时间',
+    created_at        datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updated_at        datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    constraint conversations_ibfk_1
+        foreign key (participant1_id) references driver_app.users (id)
+            on update cascade on delete cascade,
+    constraint conversations_ibfk_2
+        foreign key (participant2_id) references driver_app.users (id)
+            on update cascade on delete cascade
+)
+    comment '对话会话表' charset = utf8mb4;
+
+create index idx_conversations_last_message
+    on driver_app.conversations (last_message_at);
+
+create index idx_conversations_participant1
+    on driver_app.conversations (participant1_id);
+
+create index idx_conversations_participant2
+    on driver_app.conversations (participant2_id);
+
+create table driver_app.invites
+(
+    id            bigint auto_increment comment '邀请码唯一标识符'
+        primary key,
+    code          varchar(64)                                                       not null comment '邀请码',
+    inviter_id    bigint                                                            null comment '邀请人ID，外键关联users表',
+    invitee_email varchar(191)                                                      not null comment '被邀请人邮箱',
+    school_id     bigint                                                            not null comment '所属驾校ID，外键关联schools表',
+    role          enum ('student', 'coach')               default 'student'         not null comment '邀请角色：学员或教练',
+    status        enum ('pending', 'accepted', 'expired') default 'pending'         not null comment '邀请状态：待接受/已接受/已过期',
+    expires_at    datetime                                                          not null comment '过期时间',
+    used_at       datetime                                                          null comment '使用时间',
+    created_at    datetime                                default CURRENT_TIMESTAMP not null comment '创建时间',
+    constraint code
+        unique (code),
+    constraint invites_ibfk_1
+        foreign key (inviter_id) references driver_app.users (id)
+            on update cascade on delete set null,
+    constraint invites_ibfk_2
+        foreign key (school_id) references driver_app.schools (id)
+            on update cascade on delete cascade
+)
+    comment '邀请码表' charset = utf8mb4;
+
+create index idx_invites_code
+    on driver_app.invites (code);
+
+create index idx_invites_expires_at
+    on driver_app.invites (expires_at);
+
+create index idx_invites_inviter_id
+    on driver_app.invites (inviter_id);
+
+create index idx_invites_school_id
+    on driver_app.invites (school_id);
+
+create index idx_invites_status
+    on driver_app.invites (status);
+
+create table driver_app.messages
+(
+    id              bigint auto_increment comment '消息唯一标识符'
+        primary key,
+    conversation_id bigint                                                             not null comment '所属对话ID，外键关联conversations表',
+    sender_id       bigint                                                             not null comment '发送者ID，外键关联users表',
+    sender_name     varchar(191)                                                       not null comment '发送者姓名',
+    receiver_id     bigint                                                             not null comment '接收者ID，外键关联users表',
+    receiver_name   varchar(191)                                                       not null comment '接收者姓名',
+    content         text                                                               not null comment '消息内容',
+    message_type    enum ('text', 'image', 'file', 'system') default 'text'            not null comment '消息类型：文本/图片/文件/系统消息',
+    read_at         datetime                                                           null comment '阅读时间',
+    created_at      datetime                                 default CURRENT_TIMESTAMP not null comment '创建时间',
+    constraint messages_ibfk_1
+        foreign key (conversation_id) references driver_app.conversations (id)
+            on update cascade on delete cascade,
+    constraint messages_ibfk_2
+        foreign key (sender_id) references driver_app.users (id)
+            on update cascade on delete cascade,
+    constraint messages_ibfk_3
+        foreign key (receiver_id) references driver_app.users (id)
+            on update cascade on delete cascade
+)
+    comment '消息表' charset = utf8mb4;
+
+create index idx_messages_conversation_id
+    on driver_app.messages (conversation_id);
+
+create index idx_messages_created_at
+    on driver_app.messages (created_at);
+
+create index idx_messages_read_at
+    on driver_app.messages (read_at);
+
+create index idx_messages_receiver_id
+    on driver_app.messages (receiver_id);
+
+create index idx_messages_sender_id
+    on driver_app.messages (sender_id);
+
+create table driver_app.notifications
+(
+    id         bigint auto_increment comment '通知唯一标识符'
+        primary key,
+    user_id    bigint                                                              not null comment '接收通知的用户ID，外键关联users表',
+    title      varchar(191)                                                        not null comment '通知标题',
+    content    text                                                                not null comment '通知内容',
+    type       enum ('appointment', 'system', 'message') default 'system'          not null comment '通知类型：预约/系统/消息',
+    read_at    datetime                                                            null comment '阅读时间',
+    created_at datetime                                  default CURRENT_TIMESTAMP not null comment '创建时间',
+    constraint notifications_ibfk_1
+        foreign key (user_id) references driver_app.users (id)
+            on update cascade on delete cascade
+)
+    comment '通知消息表' charset = utf8mb4;
+
+create index idx_notifications_created_at
+    on driver_app.notifications (created_at);
+
+create index idx_notifications_read_at
+    on driver_app.notifications (read_at);
+
+create index idx_notifications_type
+    on driver_app.notifications (type);
+
+create index idx_notifications_user_id
+    on driver_app.notifications (user_id);
+
+create table driver_app.policies
+(
+    id             bigint auto_increment comment '规章制度唯一标识符'
+        primary key,
+    school_id      bigint                                                             not null comment '所属驾校ID，外键关联schools表',
+    title          varchar(191)                                                       not null comment '规章标题',
+    content        text                                                               not null comment '规章内容',
+    type           enum ('rule', 'notice', 'announcement')  default 'rule'            not null comment '类型：规则/通知/公告',
+    priority       enum ('low', 'normal', 'high', 'urgent') default 'normal'          not null comment '优先级：低/普通/高/紧急',
+    is_active      tinyint(1)                               default 1                 not null comment '是否有效',
+    effective_date date                                                               null comment '生效日期',
+    created_by     bigint                                                             null comment '创建者ID，外键关联users表',
+    created_at     datetime                                 default CURRENT_TIMESTAMP not null comment '创建时间',
+    updated_at     datetime                                 default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    constraint policies_ibfk_1
+        foreign key (school_id) references driver_app.schools (id)
+            on update cascade on delete cascade,
+    constraint policies_ibfk_2
+        foreign key (created_by) references driver_app.users (id)
+            on update cascade on delete set null
+)
+    comment '驾校规章制度表' charset = utf8mb4;
+
+create index created_by
+    on driver_app.policies (created_by);
+
+create index idx_policies_effective_date
+    on driver_app.policies (effective_date);
+
+create index idx_policies_is_active
+    on driver_app.policies (is_active);
+
+create index idx_policies_priority
+    on driver_app.policies (priority);
+
+create index idx_policies_school_id
+    on driver_app.policies (school_id);
+
+create index idx_policies_type
+    on driver_app.policies (type);
+
+create table driver_app.student_coach_relations
+(
+    id          bigint auto_increment comment '关联关系唯一标识符'
+        primary key,
+    student_id  bigint                                                not null comment '学员ID，外键关联users表',
+    coach_id    bigint                                                not null comment '教练ID，外键关联users表',
+    assigned_at datetime                    default CURRENT_TIMESTAMP not null comment '分配时间',
+    status      enum ('active', 'inactive') default 'active'          not null comment '关系状态：激活/停用',
+    notes       text                                                  null comment '备注信息',
+    created_at  datetime                    default CURRENT_TIMESTAMP not null comment '创建时间',
+    updated_at  datetime                    default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    constraint unique_student_coach
+        unique (student_id, coach_id),
+    constraint student_coach_relations_ibfk_1
+        foreign key (student_id) references driver_app.users (id)
+            on update cascade on delete cascade,
+    constraint student_coach_relations_ibfk_2
+        foreign key (coach_id) references driver_app.users (id)
+            on update cascade on delete cascade
+)
+    comment '学生-教练关联关系表' charset = utf8mb4;
+
+create index idx_student_coach_coach_id
+    on driver_app.student_coach_relations (coach_id);
+
+create index idx_student_coach_status
+    on driver_app.student_coach_relations (status);
+
+create index idx_student_coach_student_id
+    on driver_app.student_coach_relations (student_id);
+
+create index idx_users_email
+    on driver_app.users (email);
+
+create index idx_users_role
+    on driver_app.users (role);
+
+create index idx_users_school_id
+    on driver_app.users (school_id);
+
+create table driver_app.videos
+(
+    id            bigint auto_increment comment '视频唯一标识符'
+        primary key,
+    school_id     bigint                                                   not null comment '所属驾校ID，外键关联 driver_app.schools 表',
+    title         varchar(191)                                             not null comment '视频标题',
+    description   text                                                     null comment '视频描述',
+    video_url     varchar(500)                                             not null comment '视频播放地址',
+    thumbnail_url varchar(500)                                             null comment '视频缩略图地址',
+    duration      int                            default 0                 not null comment '视频时长（秒）',
+    type          enum ('teaching', 'recording') default 'teaching'        not null comment '视频类型：teaching=教学视频，recording=拍摄记录',
+    category      varchar(100)                                             null comment '视频分类',
+    tags          varchar(500)                                             null comment '视频标签，多个标签以逗号分隔',
+    view_count    int                            default 0                 not null comment '观看次数',
+    like_count    int                            default 0                 not null comment '点赞次数',
+    uploaded_by   bigint                                                   not null comment '上传者ID，外键关联 driver_app.users 表',
+    student_id    bigint                                                   null comment '关联学员ID（仅适用于拍摄记录类型）',
+    coach_id      bigint                                                   null comment '关联教练ID（仅适用于拍摄记录类型）',
+    is_published  tinyint(1)                     default 1                 not null comment '是否已发布（1=是，0=否）',
+    created_at    datetime                       default CURRENT_TIMESTAMP not null comment '创建时间',
+    updated_at    datetime                       default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    constraint videos_ibfk_1
+        foreign key (school_id) references driver_app.schools (id)
+            on update cascade on delete cascade,
+    constraint videos_ibfk_2
+        foreign key (uploaded_by) references driver_app.users (id)
+            on update cascade on delete cascade,
+    constraint videos_ibfk_3
+        foreign key (student_id) references driver_app.users (id)
+            on update cascade on delete set null,
+    constraint videos_ibfk_4
+        foreign key (coach_id) references driver_app.users (id)
+            on update cascade on delete set null
+)
+    comment '视频表，用于存储教学视频与学员拍摄记录等信息' charset = utf8mb4;
+
+create table driver_app.learning_records
+(
+    id                  bigint auto_increment comment '学习记录唯一标识符'
+        primary key,
+    user_id             bigint                                  not null comment '学员ID，外键关联 driver_app.users 表',
+    video_id            bigint                                  not null comment '视频ID，外键关联 driver_app.videos 表',
+    watch_duration      int           default 0                 not null comment '观看时长（秒）',
+    progress            decimal(5, 2) default 0.00              not null comment '观看进度（百分比，0-100）',
+    last_watch_position int           default 0                 not null comment '最后观看位置（秒）',
+    is_completed        tinyint(1)    default 0                 not null comment '是否完成观看（0=未完成，1=已完成）',
+    first_watched_at    datetime      default CURRENT_TIMESTAMP not null comment '首次观看时间',
+    last_watched_at     datetime      default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '最后观看时间',
+    constraint unique_user_video
+        unique (user_id, video_id),
+    constraint learning_records_ibfk_1
+        foreign key (user_id) references driver_app.users (id)
+            on update cascade on delete cascade,
+    constraint learning_records_ibfk_2
+        foreign key (video_id) references driver_app.videos (id)
+            on update cascade on delete cascade
+)
+    comment '学习记录表：用于记录学员观看教学视频的进度、时长等信息' charset = utf8mb4;
+
+create index idx_learning_records_completed
+    on driver_app.learning_records (is_completed);
+
+create index idx_learning_records_last_watched
+    on driver_app.learning_records (last_watched_at);
+
+create index idx_learning_records_progress
+    on driver_app.learning_records (progress);
+
+create index idx_learning_records_user_id
+    on driver_app.learning_records (user_id);
+
+create index idx_learning_records_video_id
+    on driver_app.learning_records (video_id);
+
+create table driver_app.video_comments
+(
+    id         bigint auto_increment comment '评论唯一标识符'
+        primary key,
+    video_id   bigint                             not null comment '视频ID，外键关联 driver_app.videos 表',
+    user_id    bigint                             not null comment '评论用户ID，外键关联 driver_app.users 表',
+    user_name  varchar(191)                       not null comment '评论用户姓名',
+    user_role  varchar(32)                        not null comment '用户角色：student=学员，coach=教练',
+    content    text                               not null comment '评论内容',
+    parent_id  bigint                             null comment '父评论ID（用于回复功能）',
+    created_at datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    updated_at datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    constraint video_comments_ibfk_1
+        foreign key (video_id) references driver_app.videos (id)
+            on update cascade on delete cascade,
+    constraint video_comments_ibfk_2
+        foreign key (user_id) references driver_app.users (id)
+            on update cascade on delete cascade,
+    constraint video_comments_ibfk_3
+        foreign key (parent_id) references driver_app.video_comments (id)
+            on update cascade on delete cascade
+)
+    comment '视频评论表，用于存储用户对视频的评论与回复' charset = utf8mb4;
+
+create index idx_video_comments_created_at
+    on driver_app.video_comments (created_at);
+
+create index idx_video_comments_parent_id
+    on driver_app.video_comments (parent_id);
+
+create index idx_video_comments_user_id
+    on driver_app.video_comments (user_id);
+
+create index idx_video_comments_video_id
+    on driver_app.video_comments (video_id);
+
+create index idx_videos_coach_id
+    on driver_app.videos (coach_id);
+
+create index idx_videos_created_at
+    on driver_app.videos (created_at);
+
+create index idx_videos_is_published
+    on driver_app.videos (is_published);
+
+create index idx_videos_school_id
+    on driver_app.videos (school_id);
+
+create index idx_videos_student_id
+    on driver_app.videos (student_id);
+
+create index idx_videos_type
+    on driver_app.videos (type);
+
+create index idx_videos_uploaded_by
+    on driver_app.videos (uploaded_by);
+
+create table driver_app.video_favorites
+(
+    id         bigint auto_increment comment '收藏记录ID'
+        primary key,
+    video_id   bigint                                        not null comment '视频ID',
+    user_id    bigint                                        not null comment '用户ID',
+    created_at datetime default CURRENT_TIMESTAMP            not null comment '收藏时间',
+    constraint uq_video_favorites_user_video
+        unique (user_id, video_id),
+    constraint video_favorites_ibfk_1
+        foreign key (video_id) references driver_app.videos (id)
+            on update cascade on delete cascade,
+    constraint video_favorites_ibfk_2
+        foreign key (user_id) references driver_app.users (id)
+            on update cascade on delete cascade
+)
+    comment '视频收藏表' charset = utf8mb4;
+
+create index idx_video_favorites_created_at
+    on driver_app.video_favorites (created_at);
+
+create index idx_video_favorites_video_id
+    on driver_app.video_favorites (video_id);

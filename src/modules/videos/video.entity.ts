@@ -6,7 +6,8 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  OneToMany
+  OneToMany,
+  Unique,
 } from 'typeorm';
 import { User } from '../users/user.entity';
 import { School } from '../schools/school.entity';
@@ -54,6 +55,9 @@ export class Video {
   @Column({ type: 'int', default: 0, name: 'like_count' })
   likeCount!: number;
 
+  @Column({ type: 'text', nullable: true })
+  remark?: string;
+
   @Column({ type: 'bigint', name: 'uploaded_by' })
   uploadedBy!: number;
 
@@ -94,6 +98,9 @@ export class Video {
 
   @OneToMany(() => LearningRecord, record => record.video)
   learningRecords?: LearningRecord[];
+
+  @OneToMany(() => VideoFavorite, favorite => favorite.video)
+  favorites?: VideoFavorite[];
 }
 
 @Entity('video_comments')
@@ -179,4 +186,28 @@ export class LearningRecord {
   @ManyToOne(() => Video, video => video.learningRecords, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'video_id' })
   video!: Video;
+}
+
+@Entity('video_favorites')
+@Unique('uq_video_favorites_user_video', ['userId', 'videoId'])
+export class VideoFavorite {
+  @PrimaryGeneratedColumn({ type: 'bigint' })
+  id!: number;
+
+  @Column({ type: 'bigint', name: 'video_id' })
+  videoId!: number;
+
+  @Column({ type: 'bigint', name: 'user_id' })
+  userId!: number;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt!: Date;
+
+  @ManyToOne(() => Video, video => video.favorites, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'video_id' })
+  video!: Video;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
 }

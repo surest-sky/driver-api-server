@@ -15,6 +15,8 @@ import { AvailabilityModule } from "./modules/availability/availability.module";
 import { VideosModule } from "./modules/videos/videos.module";
 import { TeachingStatsModule } from "./modules/teaching-stats/teaching-stats.module";
 import { AppUpdatesModule } from "./modules/app-updates/app-updates.module";
+import { MailModule } from "./modules/mail/mail.module";
+import { AccountSecurityModule } from "./modules/account-security/account-security.module";
 
 @Module({
   imports: [
@@ -63,6 +65,8 @@ import { AppUpdatesModule } from "./modules/app-updates/app-updates.module";
     VideosModule,
     TeachingStatsModule,
     AppUpdatesModule,
+    MailModule,
+    AccountSecurityModule,
   ],
 })
 export class AppModule {}

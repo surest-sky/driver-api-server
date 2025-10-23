@@ -34,6 +34,9 @@ export class User {
   @Column({ type: 'enum', enum: UserRole, default: UserRole.student })
   role!: UserRole;
 
+  @Column({ type: 'boolean', default: false, name: 'is_manager' })
+  isManager!: boolean;
+
   @Column({ type: 'bigint', nullable: true, name: 'school_id' })
   schoolId!: number | null;
 

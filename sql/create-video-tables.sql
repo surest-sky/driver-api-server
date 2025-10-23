@@ -74,3 +74,17 @@ CREATE TABLE `learning_records` (
   CONSTRAINT `learning_records_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `learning_records_ibfk_2` FOREIGN KEY (`video_id`) REFERENCES `videos` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='学习记录表';
+
+-- 视频收藏表
+CREATE TABLE `video_favorites` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '收藏记录ID',
+  `video_id` bigint NOT NULL COMMENT '视频ID，外键关联videos表',
+  `user_id` bigint NOT NULL COMMENT '用户ID，外键关联users表',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '收藏时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_video_favorites_user_video` (`user_id`, `video_id`),
+  KEY `idx_video_favorites_video_id` (`video_id`),
+  KEY `idx_video_favorites_created_at` (`created_at`),
+  CONSTRAINT `video_favorites_ibfk_1` FOREIGN KEY (`video_id`) REFERENCES `videos` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `video_favorites_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='视频收藏表';

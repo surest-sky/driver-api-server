@@ -46,6 +46,12 @@ export class SchoolsController {
   update(@Req() req: any, @Body() dto: UpdateSchoolDto) {
     return this.svc.updateForCoach(req.user.sub, dto);
   }
+
+  @Get('my-school')
+  @Roles('student')
+  mySchool(@Req() req: any) {
+    return this.svc.getOverviewForStudent(req.user.sub);
+  }
 }
 
 @Controller('schools')

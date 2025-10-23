@@ -16,32 +16,31 @@ export class LearningRecordsService {
     position: number,
     duration: number,
   ): Promise<LearningRecord> {
-    // 查找现有记录
+    const clampedPosition = Math.max(0, position);
+    const clampedDuration = Math.max(duration, 1);
+    const rawProgress = (clampedPosition / clampedDuration) * 100;
+    const progress = Math.min(rawProgress, 100);
+    const isCompleted = progress >= 95;
+
     let record = await this.recordRepo.findOne({
       where: { userId, videoId },
     });
 
-    // 计算进度百分比
-    const progress = duration > 0 ? Math.min((position / duration) * 100, 100) : 0;
-    const isCompleted = progress >= 95; // 观看95%以上视为完成
-
     if (record) {
-      // 更新现有记录
-      record.lastWatchPosition = position;
+      const previousPosition = record.lastWatchPosition ?? 0;
+      const delta = Math.max(0, clampedPosition - previousPosition);
+
+      record.watchDuration = Math.max(0, record.watchDuration) + delta;
+      record.watchDuration = Math.min(record.watchDuration, clampedDuration);
+      record.lastWatchPosition = clampedPosition;
       record.progress = Number(progress.toFixed(2));
       record.isCompleted = isCompleted;
-
-      // 累计观看时长（简化处理：如果position大于上次记录，增加差值）
-      if (position > record.lastWatchPosition) {
-        record.watchDuration += position - record.lastWatchPosition;
-      }
     } else {
-      // 创建新记录
       record = this.recordRepo.create({
         userId,
         videoId,
-        lastWatchPosition: position,
-        watchDuration: position,
+        watchDuration: Math.min(clampedPosition, clampedDuration),
+        lastWatchPosition: clampedPosition,
         progress: Number(progress.toFixed(2)),
         isCompleted,
       });

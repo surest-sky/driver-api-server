@@ -79,11 +79,11 @@ export class AppointmentsController {
     return this.svc.reschedule(+id, req.user.sub, new Date(body.startTime), new Date(body.endTime), body.notes);
   }
 
-  // 学员更新备注（不能改时间）
+  // 更新备注（学员/教练/管理员）
   @Patch(':id/notes')
-  @Roles('student')
+  @Roles('student', 'coach')
   async updateNotes(@Req() req: any, @Param('id') id: string, @Body() body: { notes: string }) {
-    return this.svc.updateNotes(+id, req.user.sub, body.notes);
+    return this.svc.updateNotes(+id, req.user, body.notes);
   }
 
   // 评论列表

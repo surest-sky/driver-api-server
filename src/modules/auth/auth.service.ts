@@ -135,7 +135,13 @@ export class AuthService {
   }
 
   private async buildAuthPayload(user: User) {
-    const payload = { sub: user.id, role: user.role };
+    const payload: Record<string, any> = { sub: user.id, role: user.role };
+    if (user.schoolId != null) {
+      payload.schoolId = user.schoolId;
+    }
+    if ((user as any).isManager !== undefined) {
+      payload.isManager = Boolean((user as any).isManager);
+    }
     const token = await this.jwt.signAsync(payload);
 
     const userDto: Record<string, any> = {
@@ -145,6 +151,7 @@ export class AuthService {
       avatarUrl: user.avatarUrl ?? null,
       birthDate: user.birthDate ? dayjs(user.birthDate).toISOString() : null,
       role: user.role,
+      isManager: Boolean((user as any).isManager),
       phone: user.phone ?? null,
       schoolId: user.schoolId != null ? String(user.schoolId) : null,
       pendingSchoolCode: user.pendingSchoolCode ?? null,

@@ -6,10 +6,10 @@ import { LearningRecordsController } from './learning-records.controller';
 import { VideosService } from './videos.service';
 import { VideoCommentsService } from './video-comments.service';
 import { LearningRecordsService } from './learning-records.service';
-import { Video, VideoComment, LearningRecord } from './video.entity';
+import { Video, VideoComment, LearningRecord, VideoFavorite } from './video.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Video, VideoComment, LearningRecord])],
+  imports: [TypeOrmModule.forFeature([Video, VideoComment, LearningRecord, VideoFavorite])],
   controllers: [VideosController, VideoCommentsController, LearningRecordsController],
   providers: [VideosService, VideoCommentsService, LearningRecordsService],
   exports: [VideosService, VideoCommentsService, LearningRecordsService],

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -103,6 +104,11 @@ class UpdateVideoDto {
   isPublished?: boolean;
 }
 
+class UpdateRemarkDto {
+  @IsString()
+  remark!: string;
+}
+
 @Controller('videos')
 @UseGuards(JwtAuthGuard)
 export class VideosController {
@@ -139,6 +145,7 @@ export class VideosController {
         page || 1,
         pageSize || 20,
         search,
+        user.sub,
       );
     }
 
@@ -149,6 +156,7 @@ export class VideosController {
         undefined,
         page || 1,
         pageSize || 20,
+        user.sub,
       );
     }
 
@@ -158,12 +166,33 @@ export class VideosController {
       VideoType.teaching,
       page || 1,
       pageSize || 20,
+      undefined,
+      user.sub,
+    );
+  }
+
+  @Get('favorites')
+  async getFavorites(
+    @Req() req: any,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
+  ) {
+    const user = req.user;
+    return this.videosService.getFavoriteVideos(
+      user,
+      page || 1,
+      pageSize || 20,
     );
   }
 
   @Get(':id')
-  async getVideoDetail(@Param('id', ParseIntPipe) id: number) {
-    return this.videosService.getVideoDetail(id);
+  async getVideoDetail(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.videosService.getVideoDetailForUser(id, req.user?.sub);
+  }
+
+  @Post(':id/favorite')
+  async toggleFavorite(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.videosService.toggleFavorite(id, req.user);
   }
 
   @Post(':id/view')
@@ -190,6 +219,15 @@ export class VideosController {
     @Body() dto: UpdateVideoDto,
   ) {
     return this.videosService.updateVideo(id, dto);
+  }
+
+  @Patch(':id/remark')
+  async updateRemark(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateRemarkDto,
+  ) {
+    return this.videosService.updateRemark(id, req.user, dto.remark ?? '');
   }
 
   @Delete(':id')

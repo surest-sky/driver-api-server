@@ -1,14 +1,29 @@
-import { Body, Controller, Get, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards, ParseIntPipe } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { Roles } from '../../common/roles.decorator';
 import { RolesGuard } from '../../common/roles.guard';
-import { IsEmail, IsNotEmpty } from 'class-validator';
+import * as bcrypt from 'bcrypt';
+import { User, UserRole } from './user.entity';
+import { IsBoolean, IsDateString, IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 class UpdateProfileDto {
+  @IsOptional()
+  @IsEmail()
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(191)
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
   avatarUrl?: string;
+
+  @IsOptional()
+  @IsDateString()
   birthDate?: string; // ISO date
 }
 
@@ -27,9 +42,42 @@ class CreateStudentDto {
   birthDate?: string; // ISO date
 }
 
-class BindSchoolDto {
+class CreateCoachDto {
   @IsNotEmpty()
-  drivingSchoolCode!: string;
+  @IsEmail()
+  email!: string;
+
+  @IsNotEmpty()
+  @MinLength(6)
+  password!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(191)
+  name?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isManager?: boolean;
+}
+
+class UpdateCoachDto {
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @MinLength(6)
+  password?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(191)
+  name?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isManager?: boolean;
 }
 
 @UseGuards(JwtAuthGuard)
@@ -40,14 +88,7 @@ export class UsersController {
   @Get('me')
   async me(@Req() req: any) {
     const user = await this.users.findById(req.user.sub);
-
-    // 确保返回的日期格式正确
-    const response: any = { ...user };
-    if (response.birthDate) {
-      response.birthDate = response.birthDate.toISOString().split('T')[0];
-    }
-
-    return response;
+    return this.sanitizeUser(user);
   }
 
   @Patch('me')
@@ -65,20 +106,125 @@ export class UsersController {
       patch.birthDate = birthDate;
     }
     const updated = await this.users.updateUser(req.user.sub, patch);
-
-    // 确保返回的日期格式正确
-    const response: any = { ...updated };
-    if (response.birthDate) {
-      response.birthDate = response.birthDate.toISOString().split('T')[0];
-    }
-
-    return response;
+    return this.sanitizeUser(updated);
   }
 
-  @Post('me/bind-school')
-  async bindSchool(@Req() req: any, @Body() dto: BindSchoolDto) {
-    const updated = await this.users.bindSchoolToUser(req.user.sub, dto.drivingSchoolCode);
-    return updated;
+  @Get('coaches')
+  @UseGuards(RolesGuard)
+  @Roles('coach')
+  async listCoaches(
+    @Req() req: any,
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '20',
+    @Query('q') q?: string,
+  ) {
+    const requester = await this.users.findById(req.user.sub);
+    if (!requester?.schoolId) {
+      throw new BadRequestException('当前用户未绑定学校');
+    }
+    const p = Math.max(1, Number(page) || 1);
+    const ps = Math.min(100, Math.max(1, Number(pageSize) || 20));
+    const { items, total } = await this.users.listCoachesBySchool(requester.schoolId, p, ps, q);
+    return {
+      items: items.map((coach) => this.sanitizeUser(coach)),
+      total,
+      page: p,
+      pageSize: ps,
+      canManage: Boolean(requester.isManager),
+    };
+  }
+
+  @Get('coaches/options')
+  async coachOptions(@Req() req: any) {
+    const requester = await this.users.findById(req.user.sub);
+    if (!requester?.schoolId) {
+      throw new BadRequestException('当前用户未绑定学校');
+    }
+    const { items } = await this.users.listCoachesBySchool(requester.schoolId, 1, 200);
+    return items.map((coach) => this.sanitizeUser(coach));
+  }
+
+  @Post('coaches')
+  @UseGuards(RolesGuard)
+  @Roles('coach')
+  async createCoach(@Req() req: any, @Body() dto: CreateCoachDto) {
+    const requester = await this.users.findById(req.user.sub);
+    if (!requester?.schoolId) {
+      throw new BadRequestException('当前用户未绑定学校');
+    }
+    if (!requester.isManager) {
+      throw new ForbiddenException('只有管理者可以添加教练');
+    }
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.users.findByEmail(email);
+    if (existing) {
+      throw new BadRequestException('邮箱已存在');
+    }
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const name = dto.name?.trim() || email.split('@')[0];
+    const coach = await this.users.createUser({
+      email,
+      name,
+      passwordHash,
+      role: UserRole.coach,
+      schoolId: requester.schoolId,
+      isManager: false,
+    });
+    let result = await this.users.findCoachById(coach.id);
+    if (dto.isManager) {
+      result = await this.users.setManagerForSchool(requester.schoolId, coach.id);
+    }
+    // TODO: 发送欢迎邮件给新教练，包含账号密码和学校信息
+    return this.sanitizeUser(result);
+  }
+
+  @Patch('coaches/:id')
+  @UseGuards(RolesGuard)
+  @Roles('coach')
+  async updateCoach(@Req() req: any, @Param('id', ParseIntPipe) coachId: number, @Body() dto: UpdateCoachDto) {
+    const requester = await this.users.findById(req.user.sub);
+    if (!requester?.schoolId) {
+      throw new BadRequestException('当前用户未绑定学校');
+    }
+    if (!requester.isManager) {
+      throw new ForbiddenException('只有管理者可以修改教练');
+    }
+    const coach = await this.users.findCoachById(coachId);
+    if (!coach || coach.schoolId !== requester.schoolId) {
+      throw new BadRequestException('教练不存在');
+    }
+
+    const patch: Partial<User> = {};
+    if (dto.email) {
+      const normalizedEmail = dto.email.trim().toLowerCase();
+      if (normalizedEmail !== coach.email) {
+        const existing = await this.users.findByEmail(normalizedEmail);
+        if (existing && existing.id !== coach.id) {
+          throw new BadRequestException('邮箱已存在');
+        }
+        patch.email = normalizedEmail;
+      }
+    }
+    if (dto.password) {
+      patch.passwordHash = await bcrypt.hash(dto.password, 10);
+    }
+    if (dto.name) {
+      patch.name = dto.name.trim();
+    }
+    if (dto.isManager === false && coach.isManager && coach.id === requester.id) {
+      throw new BadRequestException('请先指定其他管理者后再取消自己的管理权限');
+    }
+    if (dto.isManager === false) {
+      patch.isManager = false;
+    }
+
+    let updated = await this.users.updateCoach(coachId, patch);
+
+    if (dto.isManager) {
+      updated = await this.users.setManagerForSchool(requester.schoolId, coachId);
+    }
+
+    return this.sanitizeUser(updated);
   }
 
   @Get('students')
@@ -98,7 +244,7 @@ export class UsersController {
       throw new Error('Invalid school_id parameter');
     }
     const { items, total } = await this.users.listStudentsBySchool(schoolIdNum, p, ps, q);
-    return { items, total, page: p, pageSize: ps };
+    return { items: items.map((item) => this.sanitizeUser(item)), total, page: p, pageSize: ps };
   }
 
   @Post('students')
@@ -126,7 +272,7 @@ export class UsersController {
     }
 
     const student = await this.users.createUser(userData);
-    return student;
+    return this.sanitizeUser(student);
   }
 
   @Get('dashboard')
@@ -226,5 +372,29 @@ export class UsersController {
       ...periodData,
       lastUpdated: new Date().toISOString()
     };
+  }
+
+  private sanitizeUser(user: User | null) {
+    if (!user) return null;
+    const { passwordHash, ...rest } = user as any;
+    if (rest.birthDate instanceof Date) {
+      rest.birthDate = rest.birthDate.toISOString().split('T')[0];
+    }
+    if (rest.createdAt instanceof Date) {
+      rest.createdAt = rest.createdAt.toISOString();
+    }
+    if (rest.updatedAt instanceof Date) {
+      rest.updatedAt = rest.updatedAt.toISOString();
+    }
+    if (rest.school) {
+      rest.school = { ...rest.school };
+      if (rest.school.createdAt instanceof Date) {
+        rest.school.createdAt = rest.school.createdAt.toISOString();
+      }
+      if (rest.school.updatedAt instanceof Date) {
+        rest.school.updatedAt = rest.school.updatedAt.toISOString();
+      }
+    }
+    return rest;
   }
 }

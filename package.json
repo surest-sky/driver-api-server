@@ -11,7 +11,9 @@
     "init-db": "ts-node -r tsconfig-paths/register src/init-db.ts",
     "lint": "eslint .",
     "seed": "ts-node -r tsconfig-paths/register src/seed.ts",
-    "migration:sql": "node scripts/print-sql.js"
+    "migration:sql": "node scripts/print-sql.js",
+    "mail:test": "ts-node -r tsconfig-paths/register src/scripts/send-test-email.ts",
+    "appointments:maintain": "ts-node -r tsconfig-paths/register src/scripts/appointment-maintenance.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -24,11 +26,14 @@
     "@nestjs/swagger": "^7.3.1",
     "@nestjs/typeorm": "^10.0.0",
     "@nestjs/websockets": "^10.4.20",
+    "@aws-sdk/client-s3": "^3.914.0",
+    "@aws-sdk/s3-request-presigner": "^3.914.0",
     "bcrypt": "^5.1.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.0",
     "dayjs": "^1.11.18",
     "mysql2": "^3.9.0",
+    "nodemailer": "^6.9.13",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.1.13",
@@ -50,6 +55,7 @@
     "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "@types/nodemailer": "^6.4.14"
   }
 }
