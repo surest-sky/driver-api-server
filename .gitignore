@@ -3,3 +3,4 @@ logs
 build
 dist
 uploads
+.env

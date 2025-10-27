@@ -3,7 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt.guard';
 import { MessagesService } from './messages.service';
 import { ChatGateway } from './chat.gateway';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { Message } from './message.entity';
 import { Conversation } from './conversation.entity';
 import { UsersService } from '../users/users.service';
@@ -41,7 +41,13 @@ export class MessagesController {
     const result = [] as any[];
     for (const c of items) {
       const last = await this.msgRepo.findOne({ where: { conversationId: c.id }, order: { createdAt: 'DESC' } });
-      const unread = await this.msgRepo.count({ where: { conversationId: c.id, receiverId: userId, readAt: null as any } });
+      const unread = await this.msgRepo.count({
+        where: {
+          conversationId: c.id,
+          receiverId: userId,
+          readAt: IsNull(),
+        },
+      });
       // 为前端兼容保留 student/coach 语义字段（基于当前用户识别对端）
       const isP1 = c.participant1Id === userId;
       const role = (req.user && req.user.role) || undefined;
