@@ -2,6 +2,7 @@ node_modules
 logs
 build
 dist
-uploads
+/uploads
 .env
+.env.production
 server.log

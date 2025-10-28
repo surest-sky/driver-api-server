@@ -8,10 +8,7 @@
     "start:dev": "nest start --watch",
     "dev": "nest start --watch",
     "build": "nest build",
-    "init-db": "ts-node -r tsconfig-paths/register src/init-db.ts",
     "lint": "eslint .",
-    "seed": "ts-node -r tsconfig-paths/register src/seed.ts",
-    "migration:sql": "node scripts/print-sql.js",
     "mail:test": "ts-node -r tsconfig-paths/register src/scripts/send-test-email.ts",
     "appointments:maintain": "ts-node -r tsconfig-paths/register src/scripts/appointment-maintenance.ts"
   },
