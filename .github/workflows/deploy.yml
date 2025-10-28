@@ -9,13 +9,28 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
     steps:
+      - name: Validate required secrets
+        run: |
+          missing=""
+          [[ -z "$DEPLOY_HOST" ]] && missing+=" DEPLOY_HOST"
+          [[ -z "$DEPLOY_USER" ]] && missing+=" DEPLOY_USER"
+          [[ -z "$DEPLOY_KEY" ]] && missing+=" DEPLOY_KEY"
+          if [[ -n "$missing" ]]; then
+            echo "缺少必要的 GitHub Secrets:${missing}" >&2
+            exit 1
+          fi
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_KEY }}
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ env.DEPLOY_KEY }}
           script: |
             set -euo pipefail
             cd /www/wwwroot/surest/driver/driver-api-server
@@ -23,10 +38,10 @@ jobs:
             export PATH="/root/.nvm/versions/node/v23.11.0/bin:$PATH"
             npm ci
             npm run build
-            PIDS=$(sudo lsof -ti:3008 || true)
+            PIDS=$(sudo lsof -ti:8081 || true)
             if [[ -n "$PIDS" ]]; then
-              echo "Killing processes on port 3008: $PIDS"
+              echo "Killing processes on port 8081: $PIDS"
               sudo kill -9 $PIDS || true
             else
-              echo "No process detected on port 3008"
+              echo "No process detected on port 8081"
             fi

@@ -87,8 +87,20 @@ export class MessagesController {
   }
 
   @Get('conversations/:id/messages')
-  async list(@Param('id') id: string, @Query('page') page = '1', @Query('pageSize') pageSize = '100') {
-    const { items, total } = await this.svc.listMessages(id, Number(page) || 1, Number(pageSize) || 100);
+  async list(
+    @Param('id') id: string,
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '100',
+    @Query('sortField') sortField?: string,
+    @Query('sort') sort?: string,
+  ) {
+    const { items, total } = await this.svc.listMessages(
+      id,
+      Number(page) || 1,
+      Number(pageSize) || 100,
+      sortField,
+      sort,
+    );
     return { items, total };
   }
 
@@ -113,12 +125,69 @@ export class MessagesController {
   }
 
   @Post('get-or-create')
-  async getOrCreate(@Body() body: { studentId: string; coachId: string }) {
+  async getOrCreate(@Req() req: any, @Body() body: { studentId: string; coachId: string }) {
     const student = await this.users.findById(+body.studentId);
     const coach = await this.users.findById(+body.coachId);
     if (!student || !coach) throw new Error('user not found');
     const conv = await this.svc.getOrCreateConversation(student.id, student.name, coach.id, coach.name);
-    return conv;
+    const currentUserId = Number(req?.user?.sub);
+    const avatarOrEmpty = (user?: User | null) => (user?.avatarUrl ? String(user.avatarUrl) : '');
+
+    const participant1Avatar = conv.participant1Id === student.id ? avatarOrEmpty(student) : avatarOrEmpty(coach);
+    const participant2Avatar = conv.participant2Id === student.id ? avatarOrEmpty(student) : avatarOrEmpty(coach);
+
+    const isCurrentParticipant1 = currentUserId === conv.participant1Id;
+    const isCurrentParticipant2 = currentUserId === conv.participant2Id;
+    const peerId = isCurrentParticipant1
+      ? conv.participant2Id
+      : isCurrentParticipant2
+        ? conv.participant1Id
+        : conv.participant1Id;
+    const peerName = isCurrentParticipant1
+      ? conv.participant2Name
+      : isCurrentParticipant2
+        ? conv.participant1Name
+        : conv.participant2Name;
+    const peerAvatar = peerId === student.id ? avatarOrEmpty(student) : avatarOrEmpty(coach);
+
+    const last = await this.msgRepo.findOne({
+      where: { conversationId: conv.id },
+      order: { createdAt: 'DESC' },
+    });
+    let unread = 0;
+    if (currentUserId && (isCurrentParticipant1 || isCurrentParticipant2)) {
+      unread = await this.msgRepo.count({
+        where: {
+          conversationId: conv.id,
+          receiverId: currentUserId,
+          readAt: IsNull(),
+        },
+      });
+    }
+
+    return {
+      id: conv.id,
+      participant1Id: conv.participant1Id,
+      participant1Name: conv.participant1Name,
+      participant2Id: conv.participant2Id,
+      participant2Name: conv.participant2Name,
+      participant1Avatar,
+      participant2Avatar,
+      lastMessageAt: conv.lastMessageAt,
+      createdAt: conv.createdAt,
+      updatedAt: conv.updatedAt,
+      peerId,
+      peerName,
+      peerAvatar,
+      studentId: student.id,
+      studentName: student.name,
+      coachId: coach.id,
+      coachName: coach.name,
+      studentAvatar: avatarOrEmpty(student),
+      coachAvatar: avatarOrEmpty(coach),
+      lastMessage: last,
+      unreadCount: unread,
+    };
   }
 
   @Get('online-status')
