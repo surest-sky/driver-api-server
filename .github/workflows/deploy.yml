@@ -1,0 +1,32 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            set -euo pipefail
+            cd /www/wwwroot/surest/driver/driver-api-server
+            git pull
+            export PATH="/root/.nvm/versions/node/v23.11.0/bin:$PATH"
+            npm ci
+            npm run build
+            PIDS=$(sudo lsof -ti:3008 || true)
+            if [[ -n "$PIDS" ]]; then
+              echo "Killing processes on port 3008: $PIDS"
+              sudo kill -9 $PIDS || true
+            else
+              echo "No process detected on port 3008"
+            fi
