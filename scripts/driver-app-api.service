@@ -1,0 +1,20 @@
+[Unit]
+Description=Driver App API (NestJS)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory={{PROJECT_ROOT}}
+ExecStart={{PROJECT_ROOT}}/scripts/run-driver-app-api.sh
+Restart=on-failure
+RestartSec=5s
+User={{SERVICE_USER}}
+Group={{SERVICE_GROUP}}
+Environment=NODE_ENV=production
+Environment=PATH=/root/.nvm/versions/node/v23.11.0/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
