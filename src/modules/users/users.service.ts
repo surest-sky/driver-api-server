@@ -4,13 +4,15 @@ import { Repository } from 'typeorm';
 import { User, UserRole } from './user.entity';
 import { StudentCoachRelation, RelationStatus } from './student-coach-relation.entity';
 import { School } from '../schools/school.entity';
+import { CreditRecord } from './credit-record.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User) private readonly repo: Repository<User>,
     @InjectRepository(StudentCoachRelation) private readonly relationRepo: Repository<StudentCoachRelation>,
-    @InjectRepository(School) private readonly schoolRepo: Repository<School>
+    @InjectRepository(School) private readonly schoolRepo: Repository<School>,
+    @InjectRepository(CreditRecord) private readonly creditRecordRepo: Repository<CreditRecord>
   ) {}
 
   findByEmail(email: string) {
@@ -47,6 +49,10 @@ export class UsersService {
 
   async findCoachById(id: number) {
     return this.repo.findOne({ where: { id, role: UserRole.coach }, relations: ['school'] });
+  }
+
+  findSchoolById(id: number) {
+    return this.schoolRepo.findOne({ where: { id } });
   }
 
   async setManagerForSchool(schoolId: number, coachId: number) {
@@ -136,5 +142,106 @@ export class UsersService {
 
     // 返回更新后的用户信息（包含学校关联）
     return this.findById(userId);
+  }
+
+  async unbindStudentFromSchool(studentId: number, schoolId: number) {
+    const student = await this.repo.findOne({
+      where: { id: studentId, role: UserRole.student },
+    });
+    if (!student) {
+      throw new BadRequestException('学员不存在');
+    }
+    if (!student.schoolId || student.schoolId !== schoolId) {
+      throw new BadRequestException('学员不属于当前学校');
+    }
+    await this.repo.update(
+      { id: studentId },
+      { schoolId: null, pendingSchoolCode: null },
+    );
+    return this.findById(studentId);
+  }
+
+  async getCreditRecords(studentId: number, page: number, pageSize: number) {
+    const qb = this.creditRecordRepo
+      .createQueryBuilder('cr')
+      .leftJoinAndSelect('cr.coach', 'coach')
+      .where('cr.studentId = :studentId', { studentId })
+      .orderBy('cr.createdAt', 'DESC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    // 格式化返回数据
+    const formattedItems = items.map(record => ({
+      id: record.id.toString(),
+      studentId: record.studentId.toString(),
+      coachId: record.coachId.toString(),
+      coachName: record.coach?.name || '未知教练',
+      delta: record.delta,
+      description: record.description,
+      balanceAfter: record.balanceAfter,
+      createdAt: record.createdAt,
+    }));
+
+    return { items: formattedItems, total };
+  }
+
+  async adjustCredits(
+    studentId: number,
+    coachId: number,
+    delta: number,
+    description: string,
+  ) {
+    // 获取学员当前积分
+    const student = await this.repo.findOne({ where: { id: studentId } });
+    if (!student) {
+      throw new BadRequestException('学员不存在');
+    }
+
+    const currentCredits = student.credits || 0;
+    const newBalance = currentCredits + delta;
+
+    // 检查积分是否足够
+    if (newBalance < 0) {
+      throw new BadRequestException('积分不足');
+    }
+
+    // 获取教练名称
+    const coach = await this.repo.findOne({ where: { id: coachId } });
+    const coachName = coach?.name || '未知教练';
+
+    // 创建积分记录
+    const record = this.creditRecordRepo.create({
+      studentId,
+      coachId,
+      delta,
+      description,
+      balanceAfter: newBalance,
+      createdAt: new Date(),
+    });
+
+    await this.creditRecordRepo.save(record);
+
+    // 更新学员积分
+    await this.repo.update({ id: studentId }, { credits: newBalance });
+
+    // 返回带教练信息的记录
+    const savedRecord = await this.creditRecordRepo
+      .createQueryBuilder('cr')
+      .leftJoinAndSelect('cr.coach', 'coach')
+      .where('cr.id = :id', { id: record.id })
+      .getOne();
+
+    return {
+      id: savedRecord!.id.toString(),
+      studentId: savedRecord!.studentId.toString(),
+      coachId: savedRecord!.coachId.toString(),
+      coachName: coachName,
+      delta: savedRecord!.delta,
+      description: savedRecord!.description,
+      balanceAfter: savedRecord!.balanceAfter,
+      createdAt: savedRecord!.createdAt,
+    };
   }
 }

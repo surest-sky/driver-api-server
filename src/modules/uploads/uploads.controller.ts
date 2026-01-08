@@ -80,6 +80,16 @@ class VideoPresignDto {
   contentType!: string;
 }
 
+class ImagePresignDto {
+  @IsString()
+  @IsNotEmpty()
+  fileName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  contentType!: string;
+}
+
 function filenameFactory(req: any, file: Express.Multer.File, cb: (e: any, filename: string) => void) {
   const name = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
   const ext = extname(file.originalname || '') || '.bin';
@@ -87,8 +97,6 @@ function filenameFactory(req: any, file: Express.Multer.File, cb: (e: any, filen
 }
 
 @ApiTags('uploads')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('uploads')
 export class UploadsController {
   constructor(
@@ -97,6 +105,8 @@ export class UploadsController {
   ) {}
 
   @Post()
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -122,6 +132,8 @@ export class UploadsController {
   }
 
   @Post('video/sessions')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   async createSession(@Body() dto: CreateUploadSessionDto) {
     const meta = await this.sessions.createOrRestoreSession({
       sessionId: dto.sessionId,
@@ -140,6 +152,8 @@ export class UploadsController {
   }
 
   @Post('video/sessions/:sessionId/chunk')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -205,12 +219,40 @@ export class UploadsController {
   }
 
   @Post('video/sessions/:sessionId/complete')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   async complete(@Param('sessionId') sessionId: string, @Body() _dto: CompleteUploadDto) {
     const result = await this.sessions.completeSession(sessionId);
     return result;
   }
 
+  @Post('avatar/register')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['file'],
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: 'uploads',
+        filename: filenameFactory,
+      }),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  uploadRegisterAvatar(@UploadedFile() file: Express.Multer.File) {
+    return { url: `/static/${file.filename}` };
+  }
+
   @Post('avatar/presign')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   async createAvatarPresign(@Req() req: Request, @Body() dto: AvatarPresignDto) {
     if (!this.s3Uploads.isEnabled) {
       throw new BadRequestException('S3 直传未配置');
@@ -230,6 +272,8 @@ export class UploadsController {
   }
 
   @Post('video/presign')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   async createVideoPresign(@Req() req: Request, @Body() dto: VideoPresignDto) {
     if (!this.s3Uploads.isEnabled) {
       throw new BadRequestException('S3 直传未配置');
@@ -239,6 +283,27 @@ export class UploadsController {
       throw new ForbiddenException('用户身份缺失');
     }
     const result = await this.s3Uploads.createVideoUpload(String(user.sub), dto.fileName, dto.contentType);
+    return {
+      uploadUrl: result.uploadUrl,
+      resourceUrl: result.resourceUrl,
+      key: result.key,
+      expiresIn: result.expiresIn,
+      headers: result.headers,
+    };
+  }
+
+  @Post('image/presign')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async createImagePresign(@Req() req: Request, @Body() dto: ImagePresignDto) {
+    if (!this.s3Uploads.isEnabled) {
+      throw new BadRequestException('S3 直传未配置');
+    }
+    const user = (req as any).user as { sub?: number | string } | undefined;
+    if (!user || user.sub === undefined || user.sub === null) {
+      throw new ForbiddenException('用户身份缺失');
+    }
+    const result = await this.s3Uploads.createImageUpload(String(user.sub), dto.fileName, dto.contentType);
     return {
       uploadUrl: result.uploadUrl,
       resourceUrl: result.resourceUrl,

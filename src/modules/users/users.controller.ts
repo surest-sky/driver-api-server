@@ -16,8 +16,10 @@ import { UsersService } from "./users.service";
 import { JwtAuthGuard } from "../auth/jwt.guard";
 import { Roles } from "../../common/roles.decorator";
 import { RolesGuard } from "../../common/roles.guard";
+import { MailService } from "../mail/mail.service";
 import * as bcrypt from "bcrypt";
 import { User, UserRole } from "./user.entity";
+import { CreditRecord } from "./credit-record.entity";
 import {
   IsBoolean,
   IsDateString,
@@ -102,10 +104,23 @@ class UpdateCoachDto {
   isManager?: boolean;
 }
 
+class AdjustCreditsDto {
+  @IsNotEmpty()
+  delta!: number;
+
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(255)
+  description!: string;
+}
+
 @UseGuards(JwtAuthGuard)
 @Controller("users")
 export class UsersController {
-  constructor(private readonly users: UsersService) {}
+  constructor(
+    private readonly users: UsersService,
+    private readonly mail: MailService,
+  ) {}
 
   @Get("me")
   async me(@Req() req: any) {
@@ -306,19 +321,34 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles("coach")
   async createStudent(@Req() req: any, @Body() dto: CreateStudentDto) {
-    // 检查邮箱是否已存在
-    const existing = await this.users.findByEmail(dto.email);
+    const schoolId = req.user.schoolId;
+    if (!schoolId) {
+      throw new BadRequestException("当前用户未绑定学校");
+    }
+
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.users.findByEmail(email);
     if (existing) {
-      throw new Error("邮箱已被使用");
+      if (existing.role !== UserRole.student) {
+        throw new BadRequestException("邮箱已被使用");
+      }
+      if (existing.schoolId === schoolId) {
+        throw new BadRequestException("该学员已经是你的学生了");
+      }
+      throw new BadRequestException("该学员已绑定其他学校，无法添加");
+    }
+
+    const school = await this.users.findSchoolById(schoolId);
+    if (!school) {
+      throw new BadRequestException("学校不存在");
     }
 
     // 创建学生用户
     const userData: any = {
-      email: dto.email,
-      name: dto.name,
+      email,
+      name: dto.name?.trim() || email.split("@")[0],
       role: "student",
-      schoolCode: dto.schoolCode,
-      schoolName: dto.schoolName,
+      schoolId,
       passwordHash: null, // 将使用默认密码 123456
     };
 
@@ -327,7 +357,43 @@ export class UsersController {
     }
 
     const student = await this.users.createUser(userData);
+    await this.sendStudentInviteEmail(email, school.name);
     return this.sanitizeUser(student);
+  }
+
+  @Post("students/:id/invite")
+  @UseGuards(RolesGuard)
+  @Roles("coach")
+  async resendInvite(@Req() req: any, @Param("id", ParseIntPipe) studentId: number) {
+    const schoolId = req.user.schoolId;
+    if (!schoolId) {
+      throw new BadRequestException("当前用户未绑定学校");
+    }
+    const student = await this.users.findById(studentId);
+    if (!student || student.role !== UserRole.student) {
+      throw new BadRequestException("学员不存在");
+    }
+    if (student.schoolId !== schoolId) {
+      throw new BadRequestException("学员不属于当前学校");
+    }
+    const school = await this.users.findSchoolById(schoolId);
+    if (!school) {
+      throw new BadRequestException("学校不存在");
+    }
+    await this.sendStudentInviteEmail(student.email, school.name);
+    return { ok: true };
+  }
+
+  @Post("students/:id/unbind")
+  @UseGuards(RolesGuard)
+  @Roles("coach")
+  async unbindStudent(@Req() req: any, @Param("id", ParseIntPipe) studentId: number) {
+    const schoolId = req.user.schoolId;
+    if (!schoolId) {
+      throw new BadRequestException("当前用户未绑定学校");
+    }
+    const result = await this.users.unbindStudentFromSchool(studentId, schoolId);
+    return this.sanitizeUser(result);
   }
 
   @Get("dashboard")
@@ -434,9 +500,75 @@ export class UsersController {
     };
   }
 
+  // 积分相关路由
+  @Get("students/:id/credits")
+  @UseGuards(RolesGuard)
+  @Roles("coach")
+  async getStudentCredits(@Req() req: any, @Param("id", ParseIntPipe) studentId: number) {
+    const schoolId = req.user.schoolId;
+    const student = await this.users.findById(studentId);
+    if (!student || student.role !== UserRole.student) {
+      throw new BadRequestException("学员不存在");
+    }
+    if (student.schoolId !== schoolId) {
+      throw new ForbiddenException("无权访问该学员信息");
+    }
+    return { credits: student.credits || 0 };
+  }
+
+  @Get("students/:id/credit-records")
+  @UseGuards(RolesGuard)
+  @Roles("coach")
+  async getStudentCreditRecords(
+    @Req() req: any,
+    @Param("id", ParseIntPipe) studentId: number,
+    @Query("page") page = "1",
+    @Query("pageSize") pageSize = "50",
+  ) {
+    const schoolId = req.user.schoolId;
+    const student = await this.users.findById(studentId);
+    if (!student || student.role !== UserRole.student) {
+      throw new BadRequestException("学员不存在");
+    }
+    if (student.schoolId !== schoolId) {
+      throw new ForbiddenException("无权访问该学员信息");
+    }
+    const p = Math.max(1, Number(page) || 1);
+    const ps = Math.min(100, Math.max(1, Number(pageSize) || 50));
+    const { items, total } = await this.users.getCreditRecords(studentId, p, ps);
+    return { items, total, page: p, pageSize: ps };
+  }
+
+  @Post("students/:id/credits")
+  @UseGuards(RolesGuard)
+  @Roles("coach")
+  async adjustStudentCredits(
+    @Req() req: any,
+    @Param("id", ParseIntPipe) studentId: number,
+    @Body() dto: AdjustCreditsDto,
+  ) {
+    const schoolId = req.user.schoolId;
+    const coachId = req.user.sub;
+    const student = await this.users.findById(studentId);
+    if (!student || student.role !== UserRole.student) {
+      throw new BadRequestException("学员不存在");
+    }
+    if (student.schoolId !== schoolId) {
+      throw new ForbiddenException("无权操作该学员积分");
+    }
+    const record = await this.users.adjustCredits(
+      studentId,
+      coachId,
+      dto.delta,
+      dto.description,
+    );
+    return { record };
+  }
+
   private sanitizeUser(user: User | null) {
     if (!user) return null;
     const { passwordHash, ...rest } = user as any;
+    rest.hasPassword = Boolean(passwordHash);
     if (rest.birthDate instanceof Date) {
       rest.birthDate = rest.birthDate.toISOString().split("T")[0];
     }
@@ -456,5 +588,42 @@ export class UsersController {
       }
     }
     return rest;
+  }
+
+  private async sendStudentInviteEmail(email: string, schoolName: string) {
+    const context = {
+      schoolName,
+      email,
+      password: '123456',
+    };
+    const defaultSubject = `${schoolName} 学员邀请`;
+    const defaultText = [
+      `您好，您已被添加为 ${schoolName} 学员。`,
+      `登录邮箱：${email}`,
+      `默认密码：${context.password}`,
+      '请尽快登录并修改密码。',
+    ].join('\n');
+
+    const subject = this.applyTemplate(
+      process.env.STUDENT_INVITE_SUBJECT || defaultSubject,
+      context,
+    );
+    const text = this.applyTemplate(
+      process.env.STUDENT_INVITE_BODY || defaultText,
+      context,
+    );
+
+    await this.mail.sendMail({ to: email, subject, text });
+  }
+
+  private applyTemplate(
+    template: string,
+    vars: Record<string, string>,
+  ): string {
+    return Object.entries(vars).reduce(
+      (acc, [key, value]) =>
+        acc.replace(new RegExp(`\\{${key}\\}`, 'g'), value),
+      template,
+    );
   }
 }

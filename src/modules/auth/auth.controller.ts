@@ -29,6 +29,7 @@ export class AuthController {
       firstName: body.firstName,
       lastName: body.lastName,
       birthDate: body.birthDate,
+      avatarUrl: body.avatarUrl,
       role,
       hasDrivingSchool: body.hasDrivingSchool,
       drivingSchoolCode: body.drivingSchoolCode,

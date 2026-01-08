@@ -91,6 +91,19 @@ export class S3UploadService {
     return this.createPresignedUpload(key, contentType);
   }
 
+  async createImageUpload(userId: string, fileName: string, contentType: string): Promise<PresignedAvatarUpload> {
+    if (!this.client || !this.bucket) {
+      throw new InternalServerErrorException('S3 直传未配置');
+    }
+    const sanitizedUserId = userId.replace(/[^a-zA-Z0-9_-]/g, '') || 'user';
+    const now = Date.now();
+    const hash = Math.random().toString(36).slice(2, 10);
+    const ext = this.pickExtension(fileName, contentType);
+    const key = `${sanitizedUserId}/images/${now}-${hash}${ext}`;
+
+    return this.createPresignedUpload(key, contentType);
+  }
+
   private pickExtension(fileName: string, contentType: string): string {
     const ext = extname(fileName || '').toLowerCase();
     if (ext) {

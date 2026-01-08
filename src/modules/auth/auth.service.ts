@@ -18,6 +18,7 @@ interface RegisterDto {
   drivingSchoolCode?: string;
   drivingSchoolName?: string;
   contactNumber?: string;
+  avatarUrl?: string;
 }
 
 @Injectable()
@@ -72,6 +73,7 @@ export class AuthService {
       passwordHash,
       name: fullName,
       birthDate,
+      avatarUrl: dto.avatarUrl ? dto.avatarUrl.trim() : null,
       role: dto.role,
       schoolId: school?.id ?? null,
       phone: dto.contactNumber ? dto.contactNumber.trim() : null,

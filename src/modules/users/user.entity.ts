@@ -34,6 +34,9 @@ export class User {
   @Column({ type: 'enum', enum: UserRole, default: UserRole.student })
   role!: UserRole;
 
+  @Column({ type: 'int', default: 0 })
+  credits!: number;
+
   @Column({ type: 'boolean', default: false, name: 'is_manager' })
   isManager!: boolean;
 
