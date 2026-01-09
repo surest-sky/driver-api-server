@@ -68,6 +68,7 @@ export class AppointmentsService {
     type?: AppointmentType;
     notes?: string;
     location?: string;
+    initiator?: "student" | "coach";
   }) {
     await this._validateRules(data.startTime, data.endTime);
     const student = await this.users.findById(data.studentId);
@@ -98,6 +99,12 @@ export class AppointmentsService {
     }
 
     await this._ensureNoConflict(coach.id, data.startTime, data.endTime);
+
+    // 根据发起者设置初始状态
+    const initialStatus = data.initiator === "coach"
+        ? AppointmentStatus.confirmed
+        : AppointmentStatus.pending;
+
     const a = this.repo.create({
       studentId: student.id,
       coachId: coach.id,
@@ -106,28 +113,50 @@ export class AppointmentsService {
       type: data.type ?? AppointmentType.regular,
       notes: data.notes ?? null,
       location: data.location ?? null,
-      status: AppointmentStatus.pending,
+      status: initialStatus,
     });
     const saved = await this.repo.save(a);
 
-    // 通知教练
-    try {
-      const conv = await this.messages.getOrCreateConversation(
-        student.id,
-        student.name,
-        coach.id,
-        coach.name,
-      );
-      await this.messages.sendMessage({
-        conversationId: conv.id,
-        senderId: student.id,
-        senderName: student.name,
-        receiverId: coach.id,
-        receiverName: coach.name,
-        content: `学员 ${student.name} 提交了预约申请：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
-      });
-    } catch (e) {
-      console.warn("appointments.create: notify coach failed", e);
+    // 如果是教练发起且已确认，通知学员（而不是教练）
+    if (data.initiator === "coach" && initialStatus === AppointmentStatus.confirmed) {
+      try {
+        const conv = await this.messages.getOrCreateConversation(
+          coach.id,
+          coach.name,
+          student.id,
+          student.name,
+        );
+        await this.messages.sendMessage({
+          conversationId: conv.id,
+          senderId: coach.id,
+          senderName: coach.name,
+          receiverId: student.id,
+          receiverName: student.name,
+          content: `教练 ${coach.name} 为您安排了课程：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
+        });
+      } catch (e) {
+        console.warn("appointments.create: notify student failed", e);
+      }
+    } else {
+      // 学员发起，通知教练
+      try {
+        const conv = await this.messages.getOrCreateConversation(
+          student.id,
+          student.name,
+          coach.id,
+          coach.name,
+        );
+        await this.messages.sendMessage({
+          conversationId: conv.id,
+          senderId: student.id,
+          senderName: student.name,
+          receiverId: coach.id,
+          receiverName: coach.name,
+          content: `学员 ${student.name} 提交了预约申请：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
+        });
+      } catch (e) {
+        console.warn("appointments.create: notify coach failed", e);
+      }
     }
     return saved;
   }
@@ -520,34 +549,47 @@ export class AppointmentsService {
     if (ignoreId) qb.andWhere("a.id <> :ignoreId", { ignoreId });
     const exists = await qb.getOne();
     if (exists) {
-      const format = (d: Date) =>
-        d.toLocaleString('zh-CN', {
-          hour12: false,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
+      // 使用欧美风格的时间格式
+      const format = (d: Date) => {
+        const month = d.toLocaleString('en-US', { month: 'short' });
+        const day = d.getDate();
+        const year = d.getFullYear();
+        const time = d.toLocaleString('en-US', {
+          hour: 'numeric',
           minute: '2-digit',
+          hour12: true,
         });
+        return `${month} ${day}, ${year} at ${time}`;
+      };
       throw new BadRequestException(
-        `所选时间与现有约课冲突，已占用时段：${format(
-          exists.startTime,
-        )} - ${format(exists.endTime)}`,
+        `Time conflict with existing booking: ${format(exists.startTime)} - ${format(exists.endTime)}`,
       );
     }
   }
 
-  private async _validateRules(startTime: Date, endTime: Date) {
+  private async _validateRules(
+    startTime: Date,
+    endTime: Date,
+    options?: { skipMaxDaysCheck?: boolean }
+  ) {
     const now = new Date();
     if (startTime.getTime() < now.getTime())
-      throw new BadRequestException("不能预约过去的时间");
-    const max = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    if (startTime.getTime() > max.getTime())
-      throw new BadRequestException("最多提前30天预约");
+      throw new BadRequestException("Cannot book appointments in the past");
+
+    // 只在非重复预约时检查30天限制
+    if (!options?.skipMaxDaysCheck) {
+      const max = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      if (startTime.getTime() > max.getTime())
+        throw new BadRequestException("Bookings can only be made up to 30 days in advance");
+    }
+
+    if (endTime.getTime() <= startTime.getTime())
+      throw new BadRequestException("End time must be after start time");
+
     const dur = endTime.getTime() - startTime.getTime();
     if (dur < 30 * 60 * 1000)
-      throw new BadRequestException("课程时长至少30分钟");
+      throw new BadRequestException("Minimum booking duration is 30 minutes");
     if (dur > 3 * 60 * 60 * 1000)
-      throw new BadRequestException("单次课程时长不能超过3小时");
+      throw new BadRequestException("Maximum booking duration is 3 hours");
   }
 }
