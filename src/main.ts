@@ -17,7 +17,14 @@ async function bootstrap() {
   // 启用CORS
   app.enableCors();
   
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  // 禁用全局 ValidationPipe，因为它会错误地验证 query 参数
+  // app.useGlobalPipes(new ValidationPipe({
+  //   whitelist: true,
+  //   transform: true,
+  //   transformOptions: {
+  //     enableImplicitConversion: true,
+  //   },
+  // }));
   
   // 注册请求日志中间件（在JSON解析之后）
   app.use(new RequestLoggerMiddleware().use.bind(new RequestLoggerMiddleware()));

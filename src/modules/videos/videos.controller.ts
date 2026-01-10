@@ -131,13 +131,18 @@ export class VideosController {
   @Get()
   async getVideoList(
     @Req() req: any,
-    @Query('type') type?: VideoType,
+    @Query('type') type?: string,
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
     @Query('search') search?: string,
     @Query('studentId', new ParseIntPipe({ optional: true })) studentId?: number,
   ) {
     const user = req.user;
+
+    // 手动转换 type
+    const videoType = type && (type === 'teaching' || type === 'recording')
+      ? (type as VideoType)
+      : undefined;
 
     if (studentId) {
       return this.videosService.getVideosByStudentId(
@@ -149,10 +154,10 @@ export class VideosController {
       );
     }
 
-    if (type) {
+    if (videoType) {
       return this.videosService.getVideosByType(
         user.schoolId,
-        type,
+        videoType,
         page || 1,
         pageSize || 20,
         search,
