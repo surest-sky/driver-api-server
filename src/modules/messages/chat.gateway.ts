@@ -8,37 +8,40 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable, Logger, UseGuards } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { MessagesService } from './messages.service';
-import { MessageType } from './message.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { ChatService } from './chat.service';
+import { MessageType, MessageSender } from './message.entity';
+import { User } from '../users/user.entity';
 
 interface AuthenticatedSocket extends Socket {
   userId?: number;
   userName?: string;
 }
 
-interface JoinConversationData {
-  conversationId: string;
-  userId: string;
-  userName: string;
+interface JoinRoomData {
+  coachId: string;
+  studentId: string;
 }
 
 interface SendMessageData {
-  conversationId: string;
-  receiverId: string;
-  receiverName: string;
+  coachId: string;
+  studentId: string;
   content: string;
   type?: MessageType;
 }
 
 interface TypingData {
-  conversationId: string;
+  coachId: string;
+  studentId: string;
   isTyping: boolean;
 }
 
 interface MessageReadData {
-  conversationId: string;
+  coachId: string;
+  studentId: string;
 }
 
 @Injectable()
@@ -57,7 +60,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   constructor(
     private readonly jwtService: JwtService,
-    private readonly messagesService: MessagesService,
+    private readonly chatService: ChatService,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
   ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
@@ -100,19 +104,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         userName: client.userName,
         timestamp: new Date().toISOString(),
       });
-
     } catch (error) {
-      this.logger.error(`Connection error for client ${client.id}: ${error.message}`);
+      this.logger.error(`Connection error: ${error.message}`);
       client.disconnect();
     }
   }
 
-  handleDisconnect(client: AuthenticatedSocket) {
+  async handleDisconnect(client: AuthenticatedSocket) {
     if (client.userId) {
       this.onlineUsers.delete(client.userId);
       this.logger.log(`User ${client.userName}(${client.userId}) disconnected`);
 
-      // 广播用户下线事件
+      // 广播用户离线事件
       this.server.emit('user_offline', {
         userId: client.userId,
         userName: client.userName,
@@ -121,51 +124,71 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  @SubscribeMessage('join_conversation')
-  async handleJoinConversation(
+  /**
+   * 获取在线用户列表
+   */
+  getOnlineUsers(): number[] {
+    return Array.from(this.onlineUsers.keys());
+  }
+
+  /**
+   * 加入聊天房间
+   *
+   * 房间命名规则：chat_{coachId}_{studentId}
+   */
+  @SubscribeMessage('join_room')
+  async handleJoinRoom(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: JoinConversationData,
+    @MessageBody() data: JoinRoomData,
   ) {
     if (!client.userId) {
       return { error: 'Unauthorized' };
     }
 
-    try {
-      // 加入对话房间
-      const roomName = `conversation_${data.conversationId}`;
-      await client.join(roomName);
+    const coachId = parseInt(data.coachId);
+    const studentId = parseInt(data.studentId);
 
-      this.logger.log(`User ${client.userId} joined conversation ${data.conversationId}`);
-
-      return { success: true, conversationId: data.conversationId };
-    } catch (error) {
-      this.logger.error(`Error joining conversation: ${error.message}`);
-      return { error: 'Failed to join conversation' };
+    // 验证用户是否是聊天参与者
+    if (client.userId !== coachId && client.userId !== studentId) {
+      return { error: 'Forbidden' };
     }
+
+    const roomName = `chat_${coachId}_${studentId}`;
+    client.join(roomName);
+
+    this.logger.log(`User ${client.userName} joined room ${roomName}`);
+
+    return {
+      success: true,
+      room: roomName,
+      coachId,
+      studentId,
+    };
   }
 
-  @SubscribeMessage('leave_conversation')
-  async handleLeaveConversation(
+  /**
+   * 离开聊天房间
+   */
+  @SubscribeMessage('leave_room')
+  async handleLeaveRoom(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: JoinRoomData,
   ) {
     if (!client.userId) {
       return { error: 'Unauthorized' };
     }
 
-    try {
-      const roomName = `conversation_${data.conversationId}`;
-      await client.leave(roomName);
+    const roomName = `chat_${data.coachId}_${data.studentId}`;
+    client.leave(roomName);
 
-      this.logger.log(`User ${client.userId} left conversation ${data.conversationId}`);
+    this.logger.log(`User ${client.userName} left room ${roomName}`);
 
-      return { success: true };
-    } catch (error) {
-      this.logger.error(`Error leaving conversation: ${error.message}`);
-      return { error: 'Failed to leave conversation' };
-    }
+    return { success: true };
   }
 
+  /**
+   * 发送消息
+   */
   @SubscribeMessage('send_message')
   async handleSendMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
@@ -176,52 +199,54 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
-      // 保存消息到数据库
-      const message = await this.messagesService.sendMessage({
-        conversationId: data.conversationId,
+      const coachId = parseInt(data.coachId);
+      const studentId = parseInt(data.studentId);
+
+      // 验证用户是否是聊天参与者
+      if (client.userId !== coachId && client.userId !== studentId) {
+        return { error: 'Forbidden' };
+      }
+
+      const message = await this.chatService.sendMessage({
+        coachId,
+        studentId,
         senderId: client.userId,
         senderName: client.userName!,
-        receiverId: data.receiverId,
-        receiverName: data.receiverName,
         content: data.content,
         type: data.type || MessageType.text,
       });
 
-      // 构造消息数据
+      // 查询用户信息以补充 name 字段
+      const coach = await this.userRepo.findOne({ where: { id: coachId } });
+      const student = await this.userRepo.findOne({ where: { id: studentId } });
+
+      // 构造消息数据（包含兼容前端的字段）
+      const isFromCoach = message.sender === MessageSender.coach;
       const messageData = {
         id: message.id,
-        conversationId: message.conversationId,
-        senderId: message.senderId,
-        senderName: message.senderName,
-        receiverId: message.receiverId,
-        receiverName: message.receiverName,
+        coachId: message.coachId,
+        studentId: message.studentId,
+        sender: message.sender,
+        senderId: isFromCoach ? coachId : studentId,
+        senderName: isFromCoach ? coach?.name : student?.name,
+        receiverId: isFromCoach ? studentId : coachId,
+        receiverName: isFromCoach ? student?.name : coach?.name,
         content: message.content,
         type: message.type,
         createdAt: message.createdAt.toISOString(),
         readAt: message.readAt?.toISOString() || null,
       };
 
-      // 发送给对话房间的所有用户
-      const roomName = `conversation_${data.conversationId}`;
+      // 发送给聊天房间的所有用户
+      const roomName = `chat_${coachId}_${studentId}`;
       this.server.to(roomName).emit('new_message', {
         type: 'message',
         data: messageData,
-        sessionId: data.conversationId,
+        room: roomName,
         timestamp: new Date().toISOString(),
       });
 
-      // 如果接收者在线但不在房间中，直接发送通知
-      const receiverSocket = this.onlineUsers.get(parseInt(data.receiverId));
-      if (receiverSocket && !receiverSocket.rooms.has(roomName)) {
-        receiverSocket.emit('new_message', {
-          type: 'message',
-          data: messageData,
-          sessionId: data.conversationId,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
-      this.logger.log(`Message sent from ${client.userId} to conversation ${data.conversationId}`);
+      this.logger.log(`Message sent from ${client.userId} in room ${roomName}`);
 
       return { success: true, message: messageData };
     } catch (error) {
@@ -230,6 +255,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /**
+   * 输入状态
+   */
   @SubscribeMessage('typing_status')
   async handleTypingStatus(
     @ConnectedSocket() client: AuthenticatedSocket,
@@ -240,8 +268,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
-      // 发送输入状态到对话房间（排除自己）
-      const roomName = `conversation_${data.conversationId}`;
+      const roomName = `chat_${data.coachId}_${data.studentId}`;
       client.to(roomName).emit('typing_status', {
         type: 'typing',
         data: {
@@ -249,7 +276,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
           userName: client.userName,
           isTyping: data.isTyping,
         },
-        sessionId: data.conversationId,
+        room: roomName,
         timestamp: new Date().toISOString(),
       });
 
@@ -260,6 +287,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /**
+   * 消息已读
+   */
   @SubscribeMessage('message_read')
   async handleMessageRead(
     @ConnectedSocket() client: AuthenticatedSocket,
@@ -270,71 +300,32 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
-      // 标记消息为已读
-      await this.messagesService.markReadByUser(data.conversationId, client.userId.toString());
-
-      // 通知对话房间的其他用户
-      const roomName = `conversation_${data.conversationId}`;
+      // 标记消息为已读（这个功能暂时保留，但实际实现需要在 controller 中）
+      const roomName = `chat_${data.coachId}_${data.studentId}`;
       client.to(roomName).emit('message_read', {
         type: 'read',
-        data: {
-          userId: client.userId,
-          userName: client.userName,
-        },
-        sessionId: data.conversationId,
+        room: roomName,
+        userId: client.userId,
         timestamp: new Date().toISOString(),
       });
 
-      this.logger.log(`Messages marked as read by user ${client.userId} in conversation ${data.conversationId}`);
-
       return { success: true };
     } catch (error) {
-      this.logger.error(`Error marking messages as read: ${error.message}`);
-      return { error: 'Failed to mark messages as read' };
+      this.logger.error(`Error handling message read: ${error.message}`);
+      return { error: 'Failed to handle message read' };
     }
   }
 
-  @SubscribeMessage('heartbeat')
-  handleHeartbeat(@ConnectedSocket() client: AuthenticatedSocket) {
-    // 简单的心跳响应
-    client.emit('heartbeat_response', {
-      timestamp: new Date().toISOString(),
-    });
-    return { success: true };
-  }
-
-  @SubscribeMessage('get_online_users')
-  handleGetOnlineUsers(@ConnectedSocket() client: AuthenticatedSocket) {
-    if (!client.userId) {
-      return { error: 'Unauthorized' };
-    }
-
-    const onlineUsersList = Array.from(this.onlineUsers.values()).map(socket => ({
-      userId: socket.userId,
-      userName: socket.userName,
-    }));
-
-    return { success: true, users: onlineUsersList };
-  }
-
-  // 主动推送消息的方法（供其他服务调用）
-  async notifyNewMessage(conversationId: string, messageData: any) {
-    const roomName = `conversation_${conversationId}`;
+  /**
+   * 通知新消息（外部调用）
+   */
+  async notifyNewMessage(coachId: number, studentId: number, messageData: any) {
+    const roomName = `chat_${coachId}_${studentId}`;
     this.server.to(roomName).emit('new_message', {
       type: 'message',
       data: messageData,
-      sessionId: conversationId,
+      room: roomName,
       timestamp: new Date().toISOString(),
     });
-  }
-
-  // 获取在线用户状态
-  isUserOnline(userId: number): boolean {
-    return this.onlineUsers.has(userId);
-  }
-
-  // 获取所有在线用户
-  getOnlineUsers(): number[] {
-    return Array.from(this.onlineUsers.keys());
   }
 }

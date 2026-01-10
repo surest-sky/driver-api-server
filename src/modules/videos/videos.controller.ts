@@ -135,8 +135,19 @@ export class VideosController {
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('pageSize', new ParseIntPipe({ optional: true })) pageSize?: number,
     @Query('search') search?: string,
+    @Query('studentId', new ParseIntPipe({ optional: true })) studentId?: number,
   ) {
     const user = req.user;
+
+    if (studentId) {
+      return this.videosService.getVideosByStudentId(
+        user.schoolId,
+        studentId,
+        page || 1,
+        pageSize || 20,
+        user.sub,
+      );
+    }
 
     if (type) {
       return this.videosService.getVideosByType(

@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
-import { Between, MoreThanOrEqual, Repository } from "typeorm";
+import { Between, DataSource, EntityManager, MoreThanOrEqual, Repository } from "typeorm";
 import {
   Appointment,
   AppointmentStatus,
@@ -14,7 +14,9 @@ import { AppointmentCommentEntity } from "./appointment-comment.entity";
 import { UsersService } from "../users/users.service";
 import { Availability } from "../availability/availability.entity";
 import { InjectRepository } from "@nestjs/typeorm";
-import { MessagesService } from "../messages/messages.service";
+import { ChatService, AppointmentMessageType } from "../messages/chat.service";
+import { User } from "../users/user.entity";
+import { CreditRecord } from "../users/credit-record.entity";
 
 @Injectable()
 export class AppointmentsService {
@@ -24,9 +26,10 @@ export class AppointmentsService {
     @InjectRepository(AppointmentCommentEntity)
     private readonly commentRepo: Repository<AppointmentCommentEntity>,
     private readonly users: UsersService,
-    private readonly messages: MessagesService,
+    private readonly chat: ChatService,
     @InjectRepository(Availability)
     private readonly availabilityRepo: Repository<Availability>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async listForUser(
@@ -100,59 +103,100 @@ export class AppointmentsService {
 
     await this._ensureNoConflict(coach.id, data.startTime, data.endTime);
 
+    const requiredCredits = this._calculateCredits(
+      data.startTime,
+      data.endTime,
+    );
+
     // 根据发起者设置初始状态
     const initialStatus = data.initiator === "coach"
         ? AppointmentStatus.confirmed
         : AppointmentStatus.pending;
 
-    const a = this.repo.create({
-      studentId: student.id,
-      coachId: coach.id,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      type: data.type ?? AppointmentType.regular,
-      notes: data.notes ?? null,
-      location: data.location ?? null,
-      status: initialStatus,
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const appointmentRepo = manager.getRepository(Appointment);
+      const studentRepo = manager.getRepository(User);
+      const creditRepo = manager.getRepository(CreditRecord);
+
+      const lockedStudent = await studentRepo.findOne({
+        where: { id: student.id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedStudent) throw new BadRequestException("学员不存在");
+
+      const newBalance = this._roundCredits(
+        Number(lockedStudent.credits || 0) - requiredCredits,
+      );
+      if (newBalance < 0) {
+        throw new BadRequestException("积分不足");
+      }
+
+      const appointment = appointmentRepo.create({
+        studentId: student.id,
+        coachId: coach.id,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        type: data.type ?? AppointmentType.regular,
+        notes: data.notes ?? null,
+        location: data.location ?? null,
+        status: initialStatus,
+      });
+      const created = await appointmentRepo.save(appointment);
+
+      if (requiredCredits > 0) {
+        const record = creditRepo.create({
+          studentId: student.id,
+          coachId: coach.id,
+          delta: this._roundCredits(-requiredCredits),
+          description: this._creditUsageDescription(
+            "预约扣减",
+            data.startTime,
+            data.endTime,
+            created.id,
+          ),
+          balanceAfter: newBalance,
+          createdAt: new Date(),
+        });
+        await creditRepo.save(record);
+        await studentRepo.update({ id: student.id }, { credits: newBalance });
+      }
+
+      return created;
     });
-    const saved = await this.repo.save(a);
+
+    console.log('[Appointments] Appointment created:', { id: saved.id, initiator: data.initiator, status: initialStatus });
 
     // 如果是教练发起且已确认，通知学员（而不是教练）
     if (data.initiator === "coach" && initialStatus === AppointmentStatus.confirmed) {
+      console.log('[Appointments] Sending message to student...');
       try {
-        const conv = await this.messages.getOrCreateConversation(
-          coach.id,
-          coach.name,
-          student.id,
-          student.name,
-        );
-        await this.messages.sendMessage({
-          conversationId: conv.id,
-          senderId: coach.id,
-          senderName: coach.name,
-          receiverId: student.id,
-          receiverName: student.name,
-          content: `教练 ${coach.name} 为您安排了课程：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
+        await this.chat.sendAppointmentMessage({
+          coachId: coach.id,
+          studentId: student.id,
+          coachName: coach.name,
+          studentName: student.name,
+          type: AppointmentMessageType.created,
+          startTime: saved.startTime,
+          endTime: saved.endTime,
+          initiator: 'coach',
         });
+        console.log('[Appointments] Message sent successfully');
       } catch (e) {
         console.warn("appointments.create: notify student failed", e);
       }
     } else {
+      console.log('[Appointments] Not sending message (conditions not met):', { initiator: data.initiator, status: initialStatus });
       // 学员发起，通知教练
       try {
-        const conv = await this.messages.getOrCreateConversation(
-          student.id,
-          student.name,
-          coach.id,
-          coach.name,
-        );
-        await this.messages.sendMessage({
-          conversationId: conv.id,
-          senderId: student.id,
-          senderName: student.name,
-          receiverId: coach.id,
-          receiverName: coach.name,
-          content: `学员 ${student.name} 提交了预约申请：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
+        await this.chat.sendAppointmentMessage({
+          coachId: coach.id,
+          studentId: student.id,
+          coachName: coach.name,
+          studentName: student.name,
+          type: AppointmentMessageType.created,
+          startTime: saved.startTime,
+          endTime: saved.endTime,
+          initiator: 'student',
         });
       } catch (e) {
         console.warn("appointments.create: notify coach failed", e);
@@ -165,6 +209,16 @@ export class AppointmentsService {
     const a = await this.repo.findOne({ where: { id } });
     if (!a) throw new NotFoundException("预约不存在");
     if (a.coachId !== coachId) throw new ForbiddenException();
+
+    // 调试日志：检查状态值
+    console.log(`[confirm] Appointment ${id} status: "${a.status}", type: ${typeof a.status}, enum pending: "${AppointmentStatus.pending}"`);
+    console.log(`[confirm] Status comparison:`, {
+      actual: a.status,
+      expected: AppointmentStatus.pending,
+      isEqual: a.status === AppointmentStatus.pending,
+      stringEqual: String(a.status) === String(AppointmentStatus.pending),
+    });
+
     if (a.status !== AppointmentStatus.pending)
       throw new BadRequestException("仅能确认待处理预约");
     await this._ensureNoConflict(a.coachId, a.startTime, a.endTime, id);
@@ -177,20 +231,19 @@ export class AppointmentsService {
       relations: ["student", "coach"],
     });
     if (appointment) {
-      const conv = await this.messages.getOrCreateConversation(
-        appointment.student.id,
-        appointment.student.name,
-        appointment.coach.id,
-        appointment.coach.name,
-      );
-      await this.messages.sendMessage({
-        conversationId: conv.id,
-        senderId: appointment.coach.id,
-        senderName: appointment.coach.name,
-        receiverId: appointment.student.id,
-        receiverName: appointment.student.name,
-        content: `你的预约已被教练确认：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
-      });
+      try {
+        await this.chat.sendAppointmentMessage({
+          coachId: appointment.coach.id,
+          studentId: appointment.student.id,
+          coachName: appointment.coach.name,
+          studentName: appointment.student.name,
+          type: AppointmentMessageType.confirmed,
+          startTime: a.startTime,
+          endTime: a.endTime,
+        });
+      } catch (e) {
+        console.warn("appointments.confirm: notify student failed", e);
+      }
     }
     return saved;
   }
@@ -201,28 +254,46 @@ export class AppointmentsService {
     if (a.coachId !== coachId) throw new ForbiddenException();
     if (a.status !== AppointmentStatus.pending)
       throw new BadRequestException("仅能拒绝待处理预约");
-    a.status = AppointmentStatus.rejected;
-    a.coachNotes = reason ?? a.coachNotes;
-    const saved = await this.repo.save(a);
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const appointmentRepo = manager.getRepository(Appointment);
+      const appointment = await appointmentRepo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!appointment) throw new NotFoundException("预约不存在");
+      if (appointment.status !== AppointmentStatus.pending) {
+        throw new BadRequestException("仅能拒绝待处理预约");
+      }
+      appointment.status = AppointmentStatus.rejected;
+      appointment.coachNotes = reason ?? appointment.coachNotes;
+      const updated = await appointmentRepo.save(appointment);
+      await this._refundCredits(
+        manager,
+        updated,
+        "预约被拒绝返还",
+      );
+      return updated;
+    });
     const appointment = await this.repo.findOne({
       where: { id },
       relations: ["student", "coach"],
     });
     if (appointment) {
-      const conv = await this.messages.getOrCreateConversation(
-        appointment.student.id,
-        appointment.student.name,
-        appointment.coach.id,
-        appointment.coach.name,
-      );
-      await this.messages.sendMessage({
-        conversationId: conv.id,
-        senderId: appointment.coach.id.toString(),
-        senderName: appointment.coach.name,
-        receiverId: appointment.student.id.toString(),
-        receiverName: appointment.student.name,
-        content: `你的预约被拒绝：${reason ?? ""}`,
-      });
+      try {
+        await this.chat.sendAppointmentMessage({
+          coachId: appointment.coach.id,
+          studentId: appointment.student.id,
+          coachName: appointment.coach.name,
+          studentName: appointment.student.name,
+          type: AppointmentMessageType.rejected,
+          startTime: a.startTime,
+          endTime: a.endTime,
+          reason: reason,
+          initiator: 'coach',
+        });
+      } catch (e) {
+        console.warn("appointments.reject: notify student failed", e);
+      }
     }
     return saved;
   }
@@ -234,41 +305,62 @@ export class AppointmentsService {
       throw new ForbiddenException();
     if (a.status === AppointmentStatus.completed)
       throw new BadRequestException("已完成不可取消");
-    // 简单规则：开始前2小时内不可取消
-    if (a.startTime.getTime() - Date.now() < 2 * 60 * 60 * 1000) {
+    if (
+      a.status === AppointmentStatus.cancelled ||
+      a.status === AppointmentStatus.rejected
+    ) {
+      throw new BadRequestException("预约已取消");
+    }
+    // 仅对学员保留2小时限制，教练可以随时取消
+    if (a.studentId === userId && a.startTime.getTime() - Date.now() < 2 * 60 * 60 * 1000) {
       throw new BadRequestException("距开始不足2小时不可取消");
     }
-    a.status = AppointmentStatus.cancelled;
-    a.notes = notes ?? a.notes;
-    const saved = await this.repo.save(a);
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const appointmentRepo = manager.getRepository(Appointment);
+      const appointment = await appointmentRepo.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!appointment) throw new NotFoundException("预约不存在");
+      if (
+        appointment.status === AppointmentStatus.cancelled ||
+        appointment.status === AppointmentStatus.rejected
+      ) {
+        throw new BadRequestException("预约已取消");
+      }
+      if (appointment.status === AppointmentStatus.completed) {
+        throw new BadRequestException("已完成不可取消");
+      }
+      appointment.status = AppointmentStatus.cancelled;
+      appointment.notes = notes ?? appointment.notes;
+      const updated = await appointmentRepo.save(appointment);
+      await this._refundCredits(
+        manager,
+        updated,
+        "预约取消返还",
+      );
+      return updated;
+    });
     const appointment = await this.repo.findOne({
       where: { id },
       relations: ["student", "coach"],
     });
     if (appointment) {
-      const otherId = userId === a.studentId ? a.coachId : a.studentId;
-      const otherName =
-        userId === a.studentId
-          ? appointment.coach.name
-          : appointment.student.name;
-      const meName =
-        userId === a.studentId
-          ? appointment.student.name
-          : appointment.coach.name;
-      const conv = await this.messages.getOrCreateConversation(
-        appointment.student.id.toString(),
-        appointment.student.name,
-        appointment.coach.id.toString(),
-        appointment.coach.name,
-      );
-      await this.messages.sendMessage({
-        conversationId: conv.id,
-        senderId: userId.toString(),
-        senderName: meName,
-        receiverId: otherId.toString(),
-        receiverName: otherName,
-        content: `${meName} 取消了预约：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
-      });
+      const initiator = userId === a.studentId ? 'student' : 'coach';
+      try {
+        await this.chat.sendAppointmentMessage({
+          coachId: appointment.coach.id,
+          studentId: appointment.student.id,
+          coachName: appointment.coach.name,
+          studentName: appointment.student.name,
+          type: AppointmentMessageType.cancelled,
+          startTime: a.startTime,
+          endTime: a.endTime,
+          initiator: initiator,
+        });
+      } catch (e) {
+        console.warn("appointments.cancel: notify failed", e);
+      }
     }
     return saved;
   }
@@ -293,20 +385,20 @@ export class AppointmentsService {
       relations: ["student", "coach"],
     });
     if (appointment) {
-      const conv = await this.messages.getOrCreateConversation(
-        appointment.student.id.toString(),
-        appointment.student.name,
-        appointment.coach.id.toString(),
-        appointment.coach.name,
-      );
-      await this.messages.sendMessage({
-        conversationId: conv.id,
-        senderId: appointment.coach.id,
-        senderName: appointment.coach.name,
-        receiverId: appointment.student.id,
-        receiverName: appointment.student.name,
-        content: `课程已完成，教练备注：${coachNotes ?? ""}`,
-      });
+      try {
+        await this.chat.sendAppointmentMessage({
+          coachId: appointment.coach.id,
+          studentId: appointment.student.id,
+          coachName: appointment.coach.name,
+          studentName: appointment.student.name,
+          type: AppointmentMessageType.completed,
+          startTime: a.startTime,
+          endTime: a.endTime,
+          initiator: 'coach',
+        });
+      } catch (e) {
+        console.warn("appointments.complete: notify student failed", e);
+      }
     }
     return saved;
   }
@@ -332,20 +424,20 @@ export class AppointmentsService {
       relations: ["student", "coach"],
     });
     if (appointment) {
-      const conv = await this.messages.getOrCreateConversation(
-        appointment.student.id,
-        appointment.student.name,
-        appointment.coach.id,
-        appointment.coach.name,
-      );
-      await this.messages.sendMessage({
-        conversationId: conv.id,
-        senderId: appointment.coach.id,
-        senderName: appointment.coach.name,
-        receiverId: appointment.student.id,
-        receiverName: appointment.student.name,
-        content: `课程时间已改期：${a.startTime.toISOString()} - ${a.endTime.toISOString()}`,
-      });
+      try {
+        await this.chat.sendAppointmentMessage({
+          coachId: appointment.coach.id,
+          studentId: appointment.student.id,
+          coachName: appointment.coach.name,
+          studentName: appointment.student.name,
+          type: AppointmentMessageType.rescheduled,
+          startTime: a.startTime,
+          endTime: a.endTime,
+          initiator: 'coach',
+        });
+      } catch (e) {
+        console.warn("appointments.reschedule: notify student failed", e);
+      }
     }
     return saved;
   }
@@ -528,6 +620,79 @@ export class AppointmentsService {
         a.startTime.getMonth() === now.getMonth(),
     ).length;
     return { total, confirmed, completed, pending, cancelled, thisMonth };
+  }
+
+  private _roundCredits(value: number) {
+    return Number(Number(value || 0).toFixed(2));
+  }
+
+  private _calculateCredits = (startTime: Date, endTime: Date) => {
+    const minutes = (endTime.getTime() - startTime.getTime()) / 60000;
+    return this._roundCredits(minutes / 60);
+  };
+
+  private _formatTimeLabel(date: Date) {
+    const pad = (value: number) => value.toString().padStart(2, "0");
+    const y = date.getFullYear();
+    const m = pad(date.getMonth() + 1);
+    const d = pad(date.getDate());
+    const h = pad(date.getHours());
+    const min = pad(date.getMinutes());
+    return `${y}-${m}-${d} ${h}:${min}`;
+  }
+
+  private _creditUsageDescription(
+    prefix: string,
+    startTime: Date,
+    endTime: Date,
+    appointmentId?: number,
+  ) {
+    const start = this._formatTimeLabel(startTime);
+    const end = this._formatTimeLabel(endTime);
+    const suffix = appointmentId ? ` #${appointmentId}` : "";
+    return `${prefix}（${start} - ${end}）${suffix}`;
+  }
+
+  private async _refundCredits(
+    manager: EntityManager,
+    appointment: Appointment,
+    prefix: string,
+  ) {
+    const refundCredits = this._calculateCredits(
+      appointment.startTime,
+      appointment.endTime,
+    );
+    if (refundCredits <= 0) return;
+
+    const studentRepo = manager.getRepository(User);
+    const creditRepo = manager.getRepository(CreditRecord);
+    const lockedStudent = await studentRepo.findOne({
+      where: { id: appointment.studentId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!lockedStudent) return;
+
+    const newBalance = this._roundCredits(
+      Number(lockedStudent.credits || 0) + refundCredits,
+    );
+    const record = creditRepo.create({
+      studentId: appointment.studentId,
+      coachId: appointment.coachId,
+      delta: this._roundCredits(refundCredits),
+      description: this._creditUsageDescription(
+        prefix,
+        appointment.startTime,
+        appointment.endTime,
+        appointment.id,
+      ),
+      balanceAfter: newBalance,
+      createdAt: new Date(),
+    });
+    await creditRepo.save(record);
+    await studentRepo.update(
+      { id: appointment.studentId },
+      { credits: newBalance },
+    );
   }
 
   private async _ensureNoConflict(

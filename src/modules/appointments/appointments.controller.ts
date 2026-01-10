@@ -47,6 +47,7 @@ export class AppointmentsController {
       type: body.type,
       notes: body.notes,
       location: body.location,
+      initiator: 'coach', // 教练发起，直接设为 confirmed 状态
     });
   }
 

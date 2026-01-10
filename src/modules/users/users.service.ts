@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { User, UserRole } from './user.entity';
 import { StudentCoachRelation, RelationStatus } from './student-coach-relation.entity';
 import { School } from '../schools/school.entity';
@@ -193,41 +193,55 @@ export class UsersService {
     delta: number,
     description: string,
   ) {
-    // 获取学员当前积分
-    const student = await this.repo.findOne({ where: { id: studentId } });
+    return this.adjustCreditsWithManager(
+      { studentId, coachId, delta, description },
+      undefined,
+    );
+  }
+
+  async adjustCreditsWithManager(
+    data: {
+      studentId: number;
+      coachId: number;
+      delta: number;
+      description: string;
+    },
+    manager?: EntityManager,
+  ) {
+    const userRepo = manager ? manager.getRepository(User) : this.repo;
+    const creditRepo = manager
+      ? manager.getRepository(CreditRecord)
+      : this.creditRecordRepo;
+
+    const student = await userRepo.findOne({ where: { id: data.studentId } });
     if (!student) {
       throw new BadRequestException('学员不存在');
     }
 
-    const currentCredits = student.credits || 0;
-    const newBalance = currentCredits + delta;
+    const currentCredits = Number(student.credits || 0);
+    const delta = this._roundCredits(data.delta);
+    const newBalance = this._roundCredits(currentCredits + delta);
 
-    // 检查积分是否足够
     if (newBalance < 0) {
       throw new BadRequestException('积分不足');
     }
 
-    // 获取教练名称
-    const coach = await this.repo.findOne({ where: { id: coachId } });
+    const coach = await userRepo.findOne({ where: { id: data.coachId } });
     const coachName = coach?.name || '未知教练';
 
-    // 创建积分记录
-    const record = this.creditRecordRepo.create({
-      studentId,
-      coachId,
+    const record = creditRepo.create({
+      studentId: data.studentId,
+      coachId: data.coachId,
       delta,
-      description,
+      description: data.description,
       balanceAfter: newBalance,
       createdAt: new Date(),
     });
 
-    await this.creditRecordRepo.save(record);
+    await creditRepo.save(record);
+    await userRepo.update({ id: data.studentId }, { credits: newBalance });
 
-    // 更新学员积分
-    await this.repo.update({ id: studentId }, { credits: newBalance });
-
-    // 返回带教练信息的记录
-    const savedRecord = await this.creditRecordRepo
+    const savedRecord = await creditRepo
       .createQueryBuilder('cr')
       .leftJoinAndSelect('cr.coach', 'coach')
       .where('cr.id = :id', { id: record.id })
@@ -243,5 +257,9 @@ export class UsersService {
       balanceAfter: savedRecord!.balanceAfter,
       createdAt: savedRecord!.createdAt,
     };
+  }
+
+  private _roundCredits(value: number) {
+    return Number(Number(value || 0).toFixed(2));
   }
 }

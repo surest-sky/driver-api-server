@@ -7,6 +7,12 @@ export enum UserRole {
   coach = 'coach',
 }
 
+const creditTransformer = {
+  to: (value?: number | null) => value ?? 0,
+  from: (value?: string | number | null) =>
+    value == null ? 0 : Number(value),
+};
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
@@ -34,7 +40,13 @@ export class User {
   @Column({ type: 'enum', enum: UserRole, default: UserRole.student })
   role!: UserRole;
 
-  @Column({ type: 'int', default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    transformer: creditTransformer,
+  })
   credits!: number;
 
   @Column({ type: 'boolean', default: false, name: 'is_manager' })
@@ -45,6 +57,9 @@ export class User {
 
   @Column({ type: 'varchar', length: 255, nullable: true, name: 'pending_school_code' })
   pendingSchoolCode!: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true, name: 'location' })
+  location!: string | null;
 
   @ManyToOne(() => School)
   @JoinColumn({ name: 'school_id' })

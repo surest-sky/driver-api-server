@@ -2,14 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Invite, InviteStatus } from './invite.entity';
-import { MessagesService } from '../messages/messages.service';
+import { ChatService } from '../messages/chat.service';
 import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class InvitesService {
   constructor(
     @InjectRepository(Invite) private readonly repo: Repository<Invite>,
-    private readonly messages: MessagesService,
+    private readonly chat: ChatService,
     private readonly users: UsersService,
   ) {}
 
@@ -42,15 +42,15 @@ export class InvitesService {
     });
     const saved = await this.repo.save(record);
 
-    const conv = await this.messages.getOrCreateConversation(student.id, student.name, coach.id, coach.name);
-    await this.messages.sendMessage({
-      conversationId: (conv as any).id,
+    // 发送邀约消息
+    await this.chat.sendMessage({
+      coachId: coach.id,
+      studentId: student.id,
       senderId: coach.id,
       senderName: coach.name,
-      receiverId: student.id,
-      receiverName: student.name,
       content: `教练 ${coach.name} 向你发起了邀约，邀请码：${saved.code}`,
     });
+
     return saved;
   }
 

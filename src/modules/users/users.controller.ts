@@ -25,6 +25,7 @@ import {
   IsDateString,
   IsEmail,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
@@ -49,6 +50,11 @@ class UpdateProfileDto {
   @IsOptional()
   @IsDateString()
   birthDate?: string; // ISO date
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  location?: string;
 }
 
 class CreateStudentDto {
@@ -106,6 +112,7 @@ class UpdateCoachDto {
 
 class AdjustCreditsDto {
   @IsNotEmpty()
+  @IsNumber({}, { message: "积分必须是数字" })
   delta!: number;
 
   @IsNotEmpty()

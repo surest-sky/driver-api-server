@@ -1,215 +1,269 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt.guard';
-import { MessagesService } from './messages.service';
+import { ChatService, AppointmentMessageType } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Repository } from 'typeorm';
-import { Message } from './message.entity';
-import { Conversation } from './conversation.entity';
+import { IsNull, Repository } from 'typeorm';
+import { Message, MessageType, MessageSender } from './message.entity';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/user.entity';
 
+/**
+ * 消息控制器
+ *
+ * 新架构：直接使用 coach_id 和 student_id，不需要 conversations 表
+ */
 @UseGuards(JwtAuthGuard)
 @Controller('messages')
 export class MessagesController {
   constructor(
-    private readonly svc: MessagesService,
+    private readonly chat: ChatService,
     private readonly chatGateway: ChatGateway,
     @InjectRepository(Message) private readonly msgRepo: Repository<Message>,
-    @InjectRepository(Conversation) private readonly convRepo: Repository<Conversation>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly users: UsersService,
   ) {}
 
-  @Get('conversations')
-  async conversations(@Req() req: any, @Query('page') page = '1', @Query('pageSize') pageSize = '20', @Query('q') q?: string) {
-    const userId = Number(req.user.sub);
-    const { items, total } = await this.svc.listConversations(userId, Number(page) || 1, Number(pageSize) || 20, q);
-    const participantIds = new Set<number>();
-    for (const c of items) {
-      participantIds.add(c.participant1Id);
-      participantIds.add(c.participant2Id);
+  /**
+   * 教练端专用：获取学员消息列表
+   *
+   * GET /messages/coach/students
+   *
+   * 返回：教练的所有学员 + 最后一条消息 + 未读数
+   */
+  @Get('coach/students')
+  async getCoachStudentsWithMessages(@Req() req: any) {
+    const coachId = Number(req.user.sub);
+
+    // 1. 获取当前教练的 school_id
+    const coach = await this.userRepo.findOne({ where: { id: coachId } });
+    if (!coach || !coach.schoolId) {
+      return { items: [], total: 0 };
     }
-    const participants = participantIds.size
-      ? await this.userRepo.find({ where: { id: In(Array.from(participantIds)) } })
-      : [];
-    const userMap = new Map<number, User>();
-    for (const u of participants) {
-      userMap.set(u.id, u);
+
+    // 2. 查询该 school_id 下的所有学生用户
+    const students = await this.userRepo
+      .createQueryBuilder('u')
+      .where('u.school_id = :schoolId', { schoolId: coach.schoolId })
+      .andWhere('u.role = :role', { role: 'student' })
+      .orderBy('u.createdAt', 'DESC')
+      .getMany();
+
+    // 3. 如果没有学员，返回空数组
+    if (!students || students.length === 0) {
+      return { items: [], total: 0 };
     }
-    // 扩展 lastMessage 与未读数（针对当前用户）
-    const result = [] as any[];
-    for (const c of items) {
-      const last = await this.msgRepo.findOne({ where: { conversationId: c.id }, order: { createdAt: 'DESC' } });
-      const unread = await this.msgRepo.count({
-        where: {
-          conversationId: c.id,
-          receiverId: userId,
-          readAt: IsNull(),
-        },
-      });
-      // 为前端兼容保留 student/coach 语义字段（基于当前用户识别对端）
-      const isP1 = c.participant1Id === userId;
-      const role = (req.user && req.user.role) || undefined;
-      const asStudent = role === 'student';
-      const participant1 = userMap.get(c.participant1Id);
-      const participant2 = userMap.get(c.participant2Id);
-      const peerUser = isP1 ? participant2 : participant1;
-      const studentUser = asStudent ? (isP1 ? participant1 : participant2) : (isP1 ? participant2 : participant1);
-      const coachUser = asStudent ? (isP1 ? participant2 : participant1) : (isP1 ? participant1 : participant2);
-      const avatarOrEmpty = (user?: User | null) => (user?.avatarUrl ? String(user.avatarUrl) : '');
-      result.push({
-        id: c.id,
-        participant1Id: c.participant1Id,
-        participant1Name: c.participant1Name,
-        participant2Id: c.participant2Id,
-        participant2Name: c.participant2Name,
-        participant1Avatar: avatarOrEmpty(participant1),
-        participant2Avatar: avatarOrEmpty(participant2),
-        lastMessageAt: c.lastMessageAt,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
-        peerId: isP1 ? c.participant2Id : c.participant1Id,
-        peerName: isP1 ? c.participant2Name : c.participant1Name,
-        peerAvatar: avatarOrEmpty(peerUser),
-        // 兼容旧字段命名
-        studentId: asStudent ? userId : (isP1 ? c.participant2Id : c.participant1Id),
-        studentName: asStudent ? (isP1 ? c.participant1Name : c.participant2Name) : (isP1 ? c.participant2Name : c.participant1Name),
-        coachId: asStudent ? (isP1 ? c.participant2Id : c.participant1Id) : userId,
-        coachName: asStudent ? (isP1 ? c.participant2Name : c.participant1Name) : (isP1 ? c.participant1Name : c.participant2Name),
-        studentAvatar: avatarOrEmpty(studentUser),
-        coachAvatar: avatarOrEmpty(coachUser),
-        lastMessage: last,
-        unreadCount: unread,
-      });
+
+    const studentIds = students.map((s) => Number(s.id));
+
+    // 4. 批量查询最后一条消息
+    const lastMessages = await this.msgRepo
+      .createQueryBuilder('m')
+      .where('m.coach_id = :coachId', { coachId })
+      .andWhere('m.student_id IN (:...studentIds)', { studentIds })
+      .orderBy('m.created_at', 'DESC')
+      .getMany();
+
+    console.log(`[DEBUG] coachId: ${coachId}, studentIds: ${studentIds}`);
+    console.log(`[DEBUG] lastMessages count: ${lastMessages.length}`);
+    console.log(`[DEBUG] lastMessages:`, JSON.stringify(lastMessages, null, 2));
+
+    // 按学生 ID 分组最后一条消息
+    // 注意：TypeORM 返回的 studentId 是字符串（bigint 类型）
+    const messageMap = new Map<string, Message>();
+    for (const msg of lastMessages) {
+      const sid = String(msg.studentId);
+      if (!messageMap.has(sid)) {
+        messageMap.set(sid, msg);
+      }
     }
-    return { items: result, total };
+
+    console.log(`[DEBUG] messageMap:`, Array.from(messageMap.entries()));
+
+    // 4. 批量查询未读数
+    // 修改：使用 sender 判断而非 receiver_id
+    // 教练端的未读消息 = sender 是 'student' 且未读的消息
+    const unreadCounts = await this.msgRepo
+      .createQueryBuilder('m')
+      .select('m.student_id', 'studentId')
+      .addSelect('COUNT(*)', 'count')
+      .where('m.coach_id = :coachId', { coachId })
+      .andWhere('m.student_id IN (:...studentIds)', { studentIds })
+      .andWhere('m.sender = :sender', { sender: MessageSender.student })
+      .andWhere('m.read_at IS NULL')
+      .groupBy('m.student_id')
+      .getRawMany();
+
+    const unreadMap = new Map<number, number>();
+    for (const row of unreadCounts) {
+      unreadMap.set(Number(row.studentId), Number(row.count));
+    }
+
+    // 5. 组装返回数据
+    const avatarOrEmpty = (url?: string | null) => (url ? String(url) : '');
+    const result = students.map((s) => {
+      const studentId = Number(s.id);
+      const studentIdStr = String(studentId);  // 字符串用于查找 messageMap
+      const lastMessage = messageMap.get(studentIdStr);
+      const unreadCount = unreadMap.get(studentId) || 0;
+
+      return {
+        id: studentId,
+        displayName: s.name,
+        email: s.email,
+        avatarUrl: avatarOrEmpty(s.avatarUrl),
+        createdAt: s.createdAt,
+        // 兼容前端字段名
+        name: s.name,
+        studentId: String(studentId),
+        lastMessage: lastMessage
+          ? {
+              id: lastMessage.id,
+              content: lastMessage.content,
+              type: lastMessage.type,
+              createdAt: lastMessage.createdAt,
+            }
+          : null,
+        unreadCount: unreadCount,
+      };
+    });
+
+    return { items: result, total: result.length };
   }
 
-  @Get('conversations/:id/messages')
-  async list(
-    @Param('id') id: string,
+  /**
+   * 获取与某个学员的聊天记录
+   *
+   * GET /messages/coach/:studentId
+   */
+  @Get('coach/:studentId')
+  async getCoachStudentMessages(
+    @Req() req: any,
+    @Param('studentId') studentId: string,
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '100',
-    @Query('sortField') sortField?: string,
-    @Query('sort') sort?: string,
   ) {
-    const { items, total } = await this.svc.listMessages(
-      id,
-      Number(page) || 1,
-      Number(pageSize) || 100,
-      sortField,
-      sort,
-    );
+    const coachId = Number(req.user.sub);
+    const studentIdNum = Number(studentId);
+
+    const [messages, total] = await this.msgRepo.findAndCount({
+      where: { coachId, studentId: studentIdNum },
+      order: { createdAt: 'ASC' },
+      skip: (Number(page) - 1) * Number(pageSize),
+      take: Number(pageSize),
+    });
+
+    // 批量查询用户信息
+    const userIds = new Set<number>();
+    messages.forEach(m => {
+      // 确保 coachId 和 studentId 转为数字
+      userIds.add(Number(m.coachId));
+      userIds.add(Number(m.studentId));
+    });
+
+    // 只有当有用户 ID 时才查询
+    const users = userIds.size > 0
+      ? await this.userRepo
+          .createQueryBuilder('u')
+          .where('u.id IN (:...userIds)', { userIds: Array.from(userIds) })
+          .getMany()
+      : [];
+
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    // 组装数据，动态补充 name 字段
+    const items = messages.map(m => {
+      // 确保 key 是数字类型
+      const coachIdNum = Number(m.coachId);
+      const studentIdNum = Number(m.studentId);
+      const coach = userMap.get(coachIdNum);
+      const student = userMap.get(studentIdNum);
+      const isFromCoach = m.sender === MessageSender.coach;
+
+      return {
+        id: m.id,
+        coachId: m.coachId,
+        studentId: m.studentId,
+        sender: m.sender,
+        senderId: isFromCoach ? m.coachId : m.studentId,
+        senderName: isFromCoach ? coach?.name : student?.name,
+        receiverId: isFromCoach ? m.studentId : m.coachId,
+        receiverName: isFromCoach ? student?.name : coach?.name,
+        content: m.content,
+        type: m.type,
+        createdAt: m.createdAt,
+        readAt: m.readAt,
+      };
+    });
+
     return { items, total };
   }
 
-  @Post('conversations/:id/read')
-  async markRead(@Req() req: any, @Param('id') id: string) {
-    await this.svc.markReadByUser(id, String(req.user.sub));
+  /**
+   * 发送消息（教练端）
+   *
+   * POST /messages/coach/send
+   */
+  @Post('coach/send')
+  async sendFromCoach(@Req() req: any, @Body() body: any) {
+    // body: { studentId, content, type }
+    const student = await this.users.findById(Number(body.studentId));
+    if (!student) throw new Error('Student not found');
+
+    const coach = await this.users.findById(Number(req.user.sub));
+    if (!coach) throw new Error('Coach not found');
+
+    return this.chat.sendMessage({
+      coachId: coach.id,
+      studentId: student.id,
+      senderId: coach.id,
+      senderName: coach.name,
+      content: body.content,
+      type: body.type || MessageType.text,
+    });
+  }
+
+  /**
+   * 标记消息为已读
+   *
+   * POST /messages/coach/:studentId/read
+   */
+  @Post('coach/:studentId/read')
+  async markCoachStudentRead(@Req() req: any, @Param('studentId') studentId: string) {
+    const coachId = Number(req.user.sub);
+    const studentIdNum = Number(studentId);
+
+    // 修改：使用 sender 判断而非 receiver_id
+    // 标记学员发送的消息为已读
+    await this.msgRepo
+      .createQueryBuilder()
+      .update(Message)
+      .set({ readAt: () => 'CURRENT_TIMESTAMP' })
+      .where('coach_id = :coachId', { coachId })
+      .andWhere('student_id = :studentId', { studentId: studentIdNum })
+      .andWhere('sender = :sender', { sender: MessageSender.student })
+      .andWhere('read_at IS NULL')
+      .execute();
+
     return { ok: true };
   }
 
-  @Post('send')
-  async send(@Req() req: any, @Body() body: any) {
-    // body: { conversationId, receiverId, receiverName, content, type }
-    return this.svc.sendMessage({
-      conversationId: body.conversationId,
-      senderId: Number(req.user.sub),
-      senderName: body.senderName,
-      receiverId: body.receiverId,
-      receiverName: body.receiverName,
-      content: body.content,
-      type: body.type,
-    });
-  }
-
-  @Post('get-or-create')
-  async getOrCreate(@Req() req: any, @Body() body: { studentId: string; coachId: string }) {
-    const student = await this.users.findById(+body.studentId);
-    const coach = await this.users.findById(+body.coachId);
-    if (!student || !coach) throw new Error('user not found');
-    const conv = await this.svc.getOrCreateConversation(student.id, student.name, coach.id, coach.name);
-    const currentUserId = Number(req?.user?.sub);
-    const avatarOrEmpty = (user?: User | null) => (user?.avatarUrl ? String(user.avatarUrl) : '');
-
-    const participant1Avatar = conv.participant1Id === student.id ? avatarOrEmpty(student) : avatarOrEmpty(coach);
-    const participant2Avatar = conv.participant2Id === student.id ? avatarOrEmpty(student) : avatarOrEmpty(coach);
-
-    const isCurrentParticipant1 = currentUserId === conv.participant1Id;
-    const isCurrentParticipant2 = currentUserId === conv.participant2Id;
-    const peerId = isCurrentParticipant1
-      ? conv.participant2Id
-      : isCurrentParticipant2
-        ? conv.participant1Id
-        : conv.participant1Id;
-    const peerName = isCurrentParticipant1
-      ? conv.participant2Name
-      : isCurrentParticipant2
-        ? conv.participant1Name
-        : conv.participant2Name;
-    const peerAvatar = peerId === student.id ? avatarOrEmpty(student) : avatarOrEmpty(coach);
-
-    const last = await this.msgRepo.findOne({
-      where: { conversationId: conv.id },
-      order: { createdAt: 'DESC' },
-    });
-    let unread = 0;
-    if (currentUserId && (isCurrentParticipant1 || isCurrentParticipant2)) {
-      unread = await this.msgRepo.count({
-        where: {
-          conversationId: conv.id,
-          receiverId: currentUserId,
-          readAt: IsNull(),
-        },
-      });
-    }
-
-    return {
-      id: conv.id,
-      participant1Id: conv.participant1Id,
-      participant1Name: conv.participant1Name,
-      participant2Id: conv.participant2Id,
-      participant2Name: conv.participant2Name,
-      participant1Avatar,
-      participant2Avatar,
-      lastMessageAt: conv.lastMessageAt,
-      createdAt: conv.createdAt,
-      updatedAt: conv.updatedAt,
-      peerId,
-      peerName,
-      peerAvatar,
-      studentId: student.id,
-      studentName: student.name,
-      coachId: coach.id,
-      coachName: coach.name,
-      studentAvatar: avatarOrEmpty(student),
-      coachAvatar: avatarOrEmpty(coach),
-      lastMessage: last,
-      unreadCount: unread,
-    };
-  }
-
+  /**
+   * 获取在线状态
+   */
   @Get('online-status')
   async getOnlineStatus(@Query('userIds') userIds?: string) {
-    const ids = userIds ? userIds.split(',').map(id => parseInt(id)) : [];
+    const ids = userIds ? userIds.split(',').map((id) => parseInt(id)) : [];
     const onlineUserIds = this.chatGateway.getOnlineUsers();
-    
+
     const status: Record<string, boolean> = {};
     for (const id of ids) {
       status[id.toString()] = onlineUserIds.includes(id);
     }
-    
+
     return {
       onlineUsers: onlineUserIds,
       userStatus: status,
     };
-  }
-
-  @Post('notify/:conversationId')
-  async notifyMessage(@Param('conversationId') conversationId: string, @Body() messageData: any) {
-    // 用于外部服务推送消息通知
-    await this.chatGateway.notifyNewMessage(conversationId, messageData);
-    return { success: true };
   }
 }

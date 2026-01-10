@@ -81,4 +81,23 @@ export class SchoolsPublicController {
       },
     };
   }
+
+  @Get('search')
+  async search(@Query('q') keyword?: string, @Query('limit') limit?: string) {
+    if (!keyword || !keyword.trim()) {
+      return [];
+    }
+
+    const parsedLimit = limit ? parseInt(limit, 10) : 20;
+    const schools = await this.svc.searchSchools(keyword, parsedLimit);
+
+    return schools.map((school) => ({
+      id: school.id,
+      name: school.name,
+      code: school.code,
+      drivingSchoolCode: school.drivingSchoolCode,
+      logoUrl: school.logoUrl,
+      bannerUrl: school.bannerUrl,
+    }));
+  }
 }

@@ -115,6 +115,30 @@ export class VideosService {
     return { items: decorated, total, page, pageSize };
   }
 
+  async getVideosByStudentId(
+    schoolId: number,
+    studentId: number,
+    page: number = 1,
+    pageSize: number = 20,
+    userId?: number,
+  ) {
+    const qb = this.videoRepo
+      .createQueryBuilder('v')
+      .leftJoinAndSelect('v.uploader', 'uploader')
+      .leftJoinAndSelect('v.student', 'student')
+      .where('v.schoolId = :schoolId', { schoolId })
+      .andWhere('v.studentId = :studentId', { studentId })
+      .andWhere('v.isPublished = :isPublished', { isPublished: true });
+
+    qb.orderBy('v.createdAt', 'DESC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize);
+
+    const [items, total] = await qb.getManyAndCount();
+    const decorated = await this.markFavoriteFlags(items, userId);
+    return { items: decorated, total, page, pageSize };
+  }
+
   async getVideoDetail(videoId: number): Promise<Video | null> {
     return this.videoRepo.findOne({
       where: { id: videoId },

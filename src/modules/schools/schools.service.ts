@@ -75,4 +75,23 @@ export class SchoolsService {
   findByDrivingSchoolCode(code: string) {
     return this.repo.findOne({ where: { drivingSchoolCode: code } });
   }
+
+  /// 搜索学校
+  /// 支持按名称或代码模糊搜索
+  async searchSchools(keyword: string, limit = 20) {
+    if (!keyword || !keyword.trim()) {
+      return [];
+    }
+
+    const query = this.repo.createQueryBuilder('school');
+
+    // 支持按名称或代码搜索
+    query.where('school.name LIKE :keyword OR school.code LIKE :keyword OR school.driving_school_code LIKE :keyword', {
+      keyword: `%${keyword.trim()}%`,
+    });
+
+    query.limit(limit);
+
+    return await query.getMany();
+  }
 }
