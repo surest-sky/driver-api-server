@@ -33,7 +33,7 @@ export class AccountSecurityService {
 
     await this.mail.sendMail({
       to: email,
-      subject: 'Surest 账户邮箱验证',
+      subject: 'Verify your Surest account email',
       text: this.buildPlainText(code),
       html: this.buildHtmlTemplate(code),
     });
@@ -67,16 +67,16 @@ export class AccountSecurityService {
   }
 
   private buildPlainText(code: string): string {
-    return `您好！\n\n您正在修改 Surest 账户的登录邮箱，验证码如下：\n${code}\n\n验证码 10 分钟内有效，请尽快完成验证。如非本人操作，请忽略本邮件。\n\nSurest 团队`;
+    return `Hello,\n\nYou requested to change the login email for your Surest account. Your verification code is:\n${code}\n\nThe code is valid for 10 minutes. If you did not request this, please ignore this email.\n\nSurest Team`;
   }
 
   private buildHtmlTemplate(code: string): string {
     return `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>邮箱验证</title>
+    <title>Email Verification</title>
   </head>
   <body style="margin:0;padding:24px;background:#f2f6fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -86,8 +86,8 @@ export class AccountSecurityService {
             <tr>
               <td style="text-align:center;">
                 <div style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(135deg,#2196F3,#6EC6FF);color:#fff;font-weight:600;letter-spacing:0.6px;">Surest Account</div>
-                <h2 style="margin:24px 0 12px;font-size:24px;color:#0d1c2e;">验证您的新邮箱</h2>
-                <p style="margin:0 0 24px;color:#4a5b6c;font-size:15px;line-height:1.6;">我们收到您修改登录邮箱的请求，请在 10 分钟内输入以下验证码完成验证。</p>
+                <h2 style="margin:24px 0 12px;font-size:24px;color:#0d1c2e;">Verify your new email</h2>
+                <p style="margin:0 0 24px;color:#4a5b6c;font-size:15px;line-height:1.6;">We received a request to change your login email. Enter this code within 10 minutes to verify.</p>
               </td>
             </tr>
             <tr>
@@ -99,12 +99,12 @@ export class AccountSecurityService {
             </tr>
             <tr>
               <td style="color:#4a5b6c;font-size:13px;line-height:1.6;text-align:center;">
-                <p style="margin:0 0 18px;">如果这不是您的操作，请忽略此邮件并及时检查账号安全设置。</p>
-                <p style="margin:0;color:#8092a4;">— Surest 安全团队</p>
+                <p style="margin:0 0 18px;">If you did not request this, please ignore this email and review your account security.</p>
+                <p style="margin:0;color:#8092a4;">— Surest Security Team</p>
               </td>
             </tr>
           </table>
-          <p style="margin-top:24px;font-size:12px;color:#9aa7b7;">本邮件由系统自动发送，请勿直接回复。</p>
+          <p style="margin-top:24px;font-size:12px;color:#9aa7b7;">This email was sent automatically. Please do not reply.</p>
         </td>
       </tr>
     </table>

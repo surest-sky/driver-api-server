@@ -10,7 +10,7 @@ import {
 } from './appointment-notification.constants';
 
 /**
- * 巡检预约任务：可按需被脚本或其他入口调用。
+ * Appointment maintenance task: can be triggered by scripts or other entry points.
  */
 @Injectable()
 export class AppointmentAutoCompleteService {
@@ -28,7 +28,7 @@ export class AppointmentAutoCompleteService {
     if (!Number.isNaN(delay) && delay >= 0) {
       return delay;
     }
-    return 5; // 默认滞后5分钟，避免刚结束的课程立即结算
+    return 5; // Default delay: 5 minutes to avoid immediate completion.
   }
 
   private resolveBatchSize(): number {
@@ -44,12 +44,12 @@ export class AppointmentAutoCompleteService {
     if (!Number.isNaN(value) && value > 0) {
       return value;
     }
-    return 24 * 60; // 默认 24 小时
+    return 24 * 60; // Default: 24 hours.
   }
 
   async runMaintenance(): Promise<{ completed: number; cancelled: number }> {
     if (this.running) {
-      this.logger.warn('已有巡检任务在执行，跳过本次请求');
+      this.logger.warn('Maintenance task already running, skipping this request');
       return { completed: 0, cancelled: 0 };
     }
     this.running = true;
@@ -57,13 +57,13 @@ export class AppointmentAutoCompleteService {
       const completed = await this.completeExpired();
       const cancelled = await this.cancelStalePendingAppointments();
       this.logger.log(
-        `巡检完成：已完成 ${completed} 条，已取消 ${cancelled} 条`,
+        `Maintenance completed: ${completed} completed, ${cancelled} cancelled`,
       );
       return { completed, cancelled };
     } catch (error) {
       const err = error as Error;
       const message = err?.message ?? String(error);
-      this.logger.error(`自动完成课程任务失败: ${message}`, err?.stack);
+      this.logger.error(`Auto-complete task failed: ${message}`, err?.stack);
       throw err;
     } finally {
       this.running = false;
@@ -175,7 +175,7 @@ export class AppointmentAutoCompleteService {
     } catch (error) {
       const err = error as Error;
       const message = err?.message ?? String(error);
-      this.logger.warn(`自动取消通知发送失败: ${message}`);
+      this.logger.warn(`Auto-cancel notification failed: ${message}`);
     }
   }
 }

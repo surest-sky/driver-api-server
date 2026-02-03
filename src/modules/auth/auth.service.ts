@@ -6,6 +6,8 @@ import * as bcrypt from "bcrypt";
 import * as dayjs from "dayjs";
 import { User, UserRole } from "../users/user.entity";
 import { School } from "../schools/school.entity";
+import { MailService } from "../mail/mail.service";
+import { PasswordResetStore } from "./password-reset.store";
 
 interface RegisterDto {
   email: string;
@@ -26,7 +28,9 @@ export class AuthService {
   constructor(
     @InjectRepository(User) private readonly repo: Repository<User>,
     @InjectRepository(School) private readonly schoolRepo: Repository<School>,
-    private readonly jwt: JwtService
+    private readonly jwt: JwtService,
+    private readonly mail: MailService,
+    private readonly passwordResetStore: PasswordResetStore
   ) {}
 
   async login(email: string, password: string) {
@@ -91,6 +95,99 @@ export class AuthService {
     }
 
     return this.buildAuthPayload(savedWithRelation);
+  }
+
+  async sendPasswordResetCode(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      throw new BadRequestException("Email is required");
+    }
+
+    const user = await this.repo.findOne({ where: { email: normalizedEmail } });
+    if (!user) {
+      return { ok: true };
+    }
+
+    const code = this.passwordResetStore.issueCode(normalizedEmail);
+    await this.mail.sendMail({
+      to: normalizedEmail,
+      subject: "Password reset code",
+      text: `Your verification code is ${code}. It is valid for 10 minutes. If you did not request this, please ignore this email.`,
+      html: `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Password Reset</title>
+  </head>
+  <body style="margin:0;padding:24px;background:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0d1c2e;">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+      <tr>
+        <td align="center">
+          <table width="480" cellpadding="0" cellspacing="0" role="presentation" style="max-width:480px;background:#ffffff;border-radius:18px;padding:32px;box-shadow:0 18px 45px rgba(15,23,42,0.12);">
+            <tr>
+              <td style="text-align:center;">
+                <div style="display:inline-block;padding:10px 18px;border-radius:999px;background:linear-gradient(135deg,#3b82f6,#22d3ee);color:#ffffff;font-weight:600;letter-spacing:0.6px;">
+                  Password Reset
+                </div>
+                <h2 style="margin:22px 0 10px;font-size:24px;color:#0d1c2e;">Your verification code</h2>
+                <p style="margin:0 0 20px;color:#4b5563;font-size:14px;line-height:1.6;">
+                  Enter this code within 10 minutes to reset your password.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td align="center">
+                <div style="display:inline-block;padding:16px 36px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;font-size:26px;font-weight:700;letter-spacing:6px;">
+                  ${code}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top:20px;text-align:center;">
+                <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;">
+                  If you did not request this, you can safely ignore this email.
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="margin-top:24px;font-size:12px;color:#94a3b8;">This email was sent automatically. Please do not reply.</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`,
+    });
+
+    return { ok: true };
+  }
+
+  async resetPassword(email: string, code: string, newPassword: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !code || !newPassword) {
+      throw new BadRequestException("Email, code and new password are required");
+    }
+    if (newPassword.trim().length < 5) {
+      throw new BadRequestException("Password too short");
+    }
+
+    const status = this.passwordResetStore.consumeCode(normalizedEmail, code.trim());
+    if (status === 'expired') {
+      throw new BadRequestException("Verification code expired");
+    }
+    if (status === 'mismatch' || status === 'missing') {
+      throw new BadRequestException("Invalid verification code");
+    }
+
+    const user = await this.repo.findOne({ where: { email: normalizedEmail } });
+    if (!user) {
+      throw new BadRequestException("Invalid verification code");
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.repo.save(user);
+
+    return { ok: true };
   }
 
   private async prepareSchoolForRegistration(dto: RegisterDto) {

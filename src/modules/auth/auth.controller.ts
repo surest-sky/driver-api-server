@@ -37,4 +37,20 @@ export class AuthController {
       contactNumber: body.contactNumber,
     });
   }
+
+  @Post('password/reset/code')
+  requestPasswordResetCode(@Body() body: { email: string }) {
+    if (!body?.email) {
+      throw new BadRequestException('Email is required');
+    }
+    return this.auth.sendPasswordResetCode(body.email);
+  }
+
+  @Post('password/reset')
+  resetPassword(@Body() body: { email: string; code: string; newPassword: string }) {
+    if (!body?.email || !body?.code || !body?.newPassword) {
+      throw new BadRequestException('Email, code and new password are required');
+    }
+    return this.auth.resetPassword(body.email, body.code, body.newPassword);
+  }
 }

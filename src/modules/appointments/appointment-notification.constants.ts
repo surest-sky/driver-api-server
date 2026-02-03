@@ -1,11 +1,11 @@
 import dayjs from 'dayjs';
 
-export const AUTO_COMPLETE_TITLE = '预约已自动完成';
-export const AUTO_CANCEL_TITLE = '预约已自动取消';
+export const AUTO_COMPLETE_TITLE = 'Appointment auto-completed';
+export const AUTO_CANCEL_TITLE = 'Appointment auto-cancelled';
 
 export function buildAutoCancelStudentContent(startTime: Date): string {
   const formatted = dayjs(startTime).format('YYYY-MM-DD HH:mm');
-  return `您在 ${formatted} 的预约因超过 24 小时未被确认或已过期，系统已自动取消。`;
+  return `Your appointment at ${formatted} was auto-cancelled because it was not confirmed within 24 hours or has expired.`;
 }
 
 export function buildAutoCancelCoachContent(
@@ -14,6 +14,6 @@ export function buildAutoCancelCoachContent(
 ): string {
   const formatted = dayjs(startTime).format('YYYY-MM-DD HH:mm');
   const trimmed = (studentName ?? '').trim();
-  const name = trimmed.length > 0 ? trimmed : '学员';
-  return `${name} 在 ${formatted} 的预约因超过 24 小时未处理或时间已过期，系统已自动取消。`;
+  const name = trimmed.length > 0 ? trimmed : 'Student';
+  return `${name}'s appointment at ${formatted} was auto-cancelled because it was not handled within 24 hours or has expired.`;
 }

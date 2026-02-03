@@ -603,13 +603,62 @@ export class UsersController {
       email,
       password: '123456',
     };
-    const defaultSubject = `${schoolName} 学员邀请`;
+    const defaultSubject = `You're invited to join ${schoolName}`;
     const defaultText = [
-      `您好，您已被添加为 ${schoolName} 学员。`,
-      `登录邮箱：${email}`,
-      `默认密码：${context.password}`,
-      '请尽快登录并修改密码。',
+      `Hello, you've been added as a student at ${schoolName}.`,
+      `Login email: ${email}`,
+      `Temporary password: ${context.password}`,
+      'Please log in and change your password as soon as possible.',
     ].join('\n');
+    const defaultHtml = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student Invitation</title>
+  </head>
+  <body style="margin:0;padding:24px;background:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0d1c2e;">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+      <tr>
+        <td align="center">
+          <table width="520" cellpadding="0" cellspacing="0" role="presentation" style="max-width:520px;background:#ffffff;border-radius:20px;padding:32px;box-shadow:0 18px 45px rgba(15,23,42,0.12);">
+            <tr>
+              <td style="text-align:center;">
+                <div style="display:inline-block;padding:10px 18px;border-radius:999px;background:linear-gradient(135deg,#10b981,#22d3ee);color:#ffffff;font-weight:600;letter-spacing:0.6px;">
+                  Student Invitation
+                </div>
+                <h2 style="margin:22px 0 10px;font-size:24px;color:#0d1c2e;">
+                  Welcome to {schoolName}
+                </h2>
+                <p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.6;">
+                  You've been added as a student. Use the details below to sign in.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 24px;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0;">
+                <p style="margin:0 0 12px;font-size:14px;color:#64748b;">Login email</p>
+                <p style="margin:0 0 18px;font-size:16px;font-weight:600;color:#0f172a;">{email}</p>
+                <p style="margin:0 0 12px;font-size:14px;color:#64748b;">Temporary password</p>
+                <p style="margin:0;font-size:20px;font-weight:700;letter-spacing:2px;color:#0f172a;">{password}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top:22px;text-align:center;">
+                <p style="margin:0;color:#475569;font-size:13px;line-height:1.6;">
+                  Please log in and update your password as soon as possible.
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="margin-top:24px;font-size:12px;color:#94a3b8;">
+            This email was sent automatically. Please do not reply.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
 
     const subject = this.applyTemplate(
       process.env.STUDENT_INVITE_SUBJECT || defaultSubject,
@@ -619,8 +668,12 @@ export class UsersController {
       process.env.STUDENT_INVITE_BODY || defaultText,
       context,
     );
+    const html = this.applyTemplate(
+      process.env.STUDENT_INVITE_HTML || defaultHtml,
+      context,
+    );
 
-    await this.mail.sendMail({ to: email, subject, text });
+    await this.mail.sendMail({ to: email, subject, text, html });
   }
 
   private applyTemplate(

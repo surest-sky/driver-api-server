@@ -7,11 +7,14 @@ import { AuthController } from './auth.controller';
 import { User } from '../users/user.entity';
 import { UsersModule } from '../users/users.module';
 import { School } from '../schools/school.entity';
+import { MailModule } from '../mail/mail.module';
+import { PasswordResetStore } from './password-reset.store';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, School]), 
-    UsersModule, 
+    UsersModule,
+    MailModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -21,7 +24,7 @@ import { School } from '../schools/school.entity';
       inject: [ConfigService],
     })
   ],
-  providers: [AuthService],
+  providers: [AuthService, PasswordResetStore],
   controllers: [AuthController],
 })
 export class AuthModule {}

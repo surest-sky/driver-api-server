@@ -28,7 +28,7 @@ export class AppointmentRecurrenceService {
   }) {
     const durationMs = data.endTime.getTime() - data.startTime.getTime();
     if (durationMs <= 0) {
-      throw new BadRequestException('结束时间必须晚于开始时间');
+      throw new BadRequestException('End time must be after start time');
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -74,13 +74,13 @@ export class AppointmentRecurrenceService {
           where: { id: data.studentId },
           lock: { mode: 'pessimistic_write' },
         });
-        if (!lockedStudent) throw new BadRequestException('学员不存在');
+        if (!lockedStudent) throw new BadRequestException('Student not found');
 
         const newBalance = this._roundCredits(
           Number(lockedStudent.credits || 0) - totalCredits,
         );
         if (newBalance < 0) {
-          throw new BadRequestException('积分不足');
+          throw new BadRequestException('Insufficient credits');
         }
 
         for (const occurrence of occurrences) {
@@ -100,7 +100,7 @@ export class AppointmentRecurrenceService {
           coachId: data.coachId,
           delta: this._roundCredits(-totalCredits),
           description: this._creditUsageDescription(
-            '重复预约预扣',
+            'Recurring appointment pre-charge',
             data.startTime,
             new Date(data.startTime.getTime() + (weeksToGenerate - 1) * 7 * 24 * 60 * 60 * 1000 + durationMs),
           ),
@@ -199,7 +199,7 @@ export class AppointmentRecurrenceService {
                 coachId: rule.coachId,
                 delta: this._roundCredits(-creditsPer),
                 description: this._creditUsageDescription(
-                  '重复预约扣减',
+                  'Recurring appointment charge',
                   next,
                   end,
                 ),
