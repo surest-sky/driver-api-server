@@ -119,7 +119,7 @@ export class NotificationsService {
     return this.createNotification({
       userId: Number(userId),
       type: NotificationType.message,
-      title: `来自 ${senderName} 的消息`,
+      title: `Message from ${senderName}`,
       content,
     });
   }
@@ -132,8 +132,8 @@ export class NotificationsService {
     return this.createNotification({
       userId: Number(userId),
       type: NotificationType.system,
-      title: '收到新的学习邀约',
-      content: `${coachName} 邀请您参加驾驶培训`,
+      title: 'New learning invitation received',
+      content: `${coachName} invites you to join driving training`,
     });
   }
 

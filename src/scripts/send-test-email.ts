@@ -10,8 +10,8 @@ async function bootstrap() {
   const mailService = appContext.get(MailService);
 
   const to = process.argv[2] ?? 'surest.sky@gmail.com';
-  const subject = process.argv[3] ?? 'SMTP 测试邮件';
-  const bodyText = process.argv[4] ?? '这是一封来自 Node.js SMTP 服务的测试邮件。';
+  const subject = process.argv[3] ?? 'SMTP Test Email';
+  const bodyText = process.argv[4] ?? 'This is a test email from Node.js SMTP service.';
   const code = process.argv[5] ?? generateCode();
 
   try {
@@ -22,10 +22,10 @@ async function bootstrap() {
       html: buildHtmlTemplate(code, bodyText),
     });
     // eslint-disable-next-line no-console
-    console.log(`邮件已发送至 ${to}`);
+    console.log(`Email sent to ${to}`);
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('发送邮件失败:', error);
+    console.error('Failed to send email:', error);
   } finally {
     await appContext.close();
   }
@@ -33,7 +33,7 @@ async function bootstrap() {
 
 bootstrap().catch((error) => {
   // eslint-disable-next-line no-console
-  console.error('脚本执行失败:', error);
+  console.error('Script execution failed:', error);
   process.exitCode = 1;
 });
 
@@ -47,7 +47,7 @@ function buildHtmlTemplate(code: string, message: string): string {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SMTP 测试邮件</title>
+    <title>SMTP Test Email</title>
   </head>
   <body style="margin:0;padding:24px;background:#f3f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
@@ -57,7 +57,7 @@ function buildHtmlTemplate(code: string, message: string): string {
             <tr>
               <td style="text-align:center;">
                 <div style="display:inline-block;padding:12px 20px;border-radius:999px;background:linear-gradient(135deg,#2196F3,#6EC6FF);color:#fff;font-weight:600;letter-spacing:0.6px;">Surest SMTP Test</div>
-                <h2 style="margin:24px 0 12px;font-size:24px;color:#0d1c2e;">邮件模板演示</h2>
+                <h2 style="margin:24px 0 12px;font-size:24px;color:#0d1c2e;">Email Template Demo</h2>
                 <p style="margin:0 0 24px;color:#4a5b6c;font-size:15px;line-height:1.6;">${message}</p>
               </td>
             </tr>
@@ -70,12 +70,12 @@ function buildHtmlTemplate(code: string, message: string): string {
             </tr>
             <tr>
               <td style="color:#4a5b6c;font-size:13px;line-height:1.6;text-align:center;">
-                <p style="margin:0 0 18px;">可在第五个参数传入自定义验证码；不传则使用随机演示。</p>
-                <p style="margin:0;color:#8092a4;">— Surest 邮件服务</p>
+                <p style="margin:0 0 18px;">You can pass a custom verification code in the fifth parameter; otherwise, a random one will be used.</p>
+                <p style="margin:0;color:#8092a4;">— Surest Mail Service</p>
               </td>
             </tr>
           </table>
-          <p style="margin-top:24px;font-size:12px;color:#9aa7b7;">本邮件由测试脚本发送，仅用于模板演示。</p>
+          <p style="margin-top:24px;font-size:12px;color:#9aa7b7;">This email was sent by a test script for template demonstration only.</p>
         </td>
       </tr>
     </table>

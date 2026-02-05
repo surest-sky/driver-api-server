@@ -112,7 +112,7 @@ class UpdateCoachDto {
 
 class AdjustCreditsDto {
   @IsNotEmpty()
-  @IsNumber({}, { message: "积分必须是数字" })
+  @IsNumber({}, { message: "Credits must be a number" })
   delta!: number;
 
   @IsNotEmpty()
@@ -164,7 +164,7 @@ export class UsersController {
   ) {
     const requester = await this.users.findById(req.user.sub);
     if (!requester?.schoolId) {
-      throw new BadRequestException("当前用户未绑定学校");
+      throw new BadRequestException("User has no school bound");
     }
     const p = Math.max(1, Number(page) || 1);
     const ps = Math.min(100, Math.max(1, Number(pageSize) || 20));
@@ -187,7 +187,7 @@ export class UsersController {
   async coachOptions(@Req() req: any) {
     const requester = await this.users.findById(req.user.sub);
     if (!requester?.schoolId) {
-      throw new BadRequestException("当前用户未绑定学校");
+      throw new BadRequestException("User has no school bound");
     }
     const { items } = await this.users.listCoachesBySchool(
       requester.schoolId,
@@ -203,15 +203,15 @@ export class UsersController {
   async createCoach(@Req() req: any, @Body() dto: CreateCoachDto) {
     const requester = await this.users.findById(req.user.sub);
     if (!requester?.schoolId) {
-      throw new BadRequestException("当前用户未绑定学校");
+      throw new BadRequestException("User has no school bound");
     }
     if (!requester.isManager) {
-      throw new ForbiddenException("只有管理者可以添加教练");
+      throw new ForbiddenException("Only managers can add coaches");
     }
     const email = dto.email.trim().toLowerCase();
     const existing = await this.users.findByEmail(email);
     if (existing) {
-      throw new BadRequestException("邮箱已存在");
+      throw new BadRequestException("Email already exists");
     }
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const name = dto.name?.trim() || email.split("@")[0];
@@ -244,14 +244,14 @@ export class UsersController {
   ) {
     const requester = await this.users.findById(req.user.sub);
     if (!requester?.schoolId) {
-      throw new BadRequestException("当前用户未绑定学校");
+      throw new BadRequestException("User has no school bound");
     }
     if (!requester.isManager) {
-      throw new ForbiddenException("只有管理者可以修改教练");
+      throw new ForbiddenException("Only managers can modify coaches");
     }
     const coach = await this.users.findCoachById(coachId);
     if (!coach || coach.schoolId !== requester.schoolId) {
-      throw new BadRequestException("教练不存在");
+      throw new BadRequestException("Coach not found");
     }
 
     const patch: Partial<User> = {};
@@ -260,7 +260,7 @@ export class UsersController {
       if (normalizedEmail !== coach.email) {
         const existing = await this.users.findByEmail(normalizedEmail);
         if (existing && existing.id !== coach.id) {
-          throw new BadRequestException("邮箱已存在");
+          throw new BadRequestException("Email already in use");
         }
         patch.email = normalizedEmail;
       }
@@ -276,7 +276,7 @@ export class UsersController {
       coach.isManager &&
       coach.id === requester.id
     ) {
-      throw new BadRequestException("请先指定其他管理者后再取消自己的管理权限");
+      throw new BadRequestException("Please assign another manager before removing your own admin privileges");
     }
     if (dto.isManager === false) {
       patch.isManager = false;
@@ -337,17 +337,17 @@ export class UsersController {
     const existing = await this.users.findByEmail(email);
     if (existing) {
       if (existing.role !== UserRole.student) {
-        throw new BadRequestException("邮箱已被使用");
+        throw new BadRequestException("Email already in use");
       }
       if (existing.schoolId === schoolId) {
-        throw new BadRequestException("该学员已经是你的学生了");
+        throw new BadRequestException("This student is already yours");
       }
-      throw new BadRequestException("该学员已绑定其他学校，无法添加");
+      throw new BadRequestException("This student is bound to another school");
     }
 
     const school = await this.users.findSchoolById(schoolId);
     if (!school) {
-      throw new BadRequestException("学校不存在");
+      throw new BadRequestException("School not found");
     }
 
     // 创建学生用户
@@ -378,14 +378,14 @@ export class UsersController {
     }
     const student = await this.users.findById(studentId);
     if (!student || student.role !== UserRole.student) {
-      throw new BadRequestException("学员不存在");
+      throw new BadRequestException("Student not found");
     }
     if (student.schoolId !== schoolId) {
-      throw new BadRequestException("学员不属于当前学校");
+      throw new BadRequestException("Student does not belong to current school");
     }
     const school = await this.users.findSchoolById(schoolId);
     if (!school) {
-      throw new BadRequestException("学校不存在");
+      throw new BadRequestException("School not found");
     }
     await this.sendStudentInviteEmail(student.email, school.name);
     return { ok: true };
@@ -515,10 +515,10 @@ export class UsersController {
     const schoolId = req.user.schoolId;
     const student = await this.users.findById(studentId);
     if (!student || student.role !== UserRole.student) {
-      throw new BadRequestException("学员不存在");
+      throw new BadRequestException("Student not found");
     }
     if (student.schoolId !== schoolId) {
-      throw new ForbiddenException("无权访问该学员信息");
+      throw new ForbiddenException("No permission to access student information");
     }
     return { credits: student.credits || 0 };
   }
@@ -535,10 +535,10 @@ export class UsersController {
     const schoolId = req.user.schoolId;
     const student = await this.users.findById(studentId);
     if (!student || student.role !== UserRole.student) {
-      throw new BadRequestException("学员不存在");
+      throw new BadRequestException("Student not found");
     }
     if (student.schoolId !== schoolId) {
-      throw new ForbiddenException("无权访问该学员信息");
+      throw new ForbiddenException("No permission to access student information");
     }
     const p = Math.max(1, Number(page) || 1);
     const ps = Math.min(100, Math.max(1, Number(pageSize) || 50));
@@ -558,10 +558,10 @@ export class UsersController {
     const coachId = req.user.sub;
     const student = await this.users.findById(studentId);
     if (!student || student.role !== UserRole.student) {
-      throw new BadRequestException("学员不存在");
+      throw new BadRequestException("Student not found");
     }
     if (student.schoolId !== schoolId) {
-      throw new ForbiddenException("无权操作该学员积分");
+      throw new ForbiddenException("No permission to modify student credits");
     }
     const record = await this.users.adjustCredits(
       studentId,

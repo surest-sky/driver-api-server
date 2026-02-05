@@ -131,7 +131,7 @@ export class UsersService {
     });
 
     if (!school) {
-      throw new BadRequestException('驾校代码不存在');
+      throw new BadRequestException('Driving school code does not exist');
     }
 
     // 更新用户的学校绑定
@@ -149,10 +149,10 @@ export class UsersService {
       where: { id: studentId, role: UserRole.student },
     });
     if (!student) {
-      throw new BadRequestException('学员不存在');
+      throw new BadRequestException('Student not found');
     }
     if (!student.schoolId || student.schoolId !== schoolId) {
-      throw new BadRequestException('学员不属于当前学校');
+      throw new BadRequestException('Student does not belong to current school');
     }
     await this.repo.update(
       { id: studentId },
@@ -223,11 +223,11 @@ export class UsersService {
     const newBalance = this._roundCredits(currentCredits + delta);
 
     if (newBalance < 0) {
-      throw new BadRequestException('积分不足');
+      throw new BadRequestException('Insufficient credits');
     }
 
     const coach = await userRepo.findOne({ where: { id: data.coachId } });
-    const coachName = coach?.name || '未知教练';
+    const coachName = coach?.name || 'Unknown coach';
 
     const record = creditRepo.create({
       studentId: data.studentId,

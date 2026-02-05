@@ -48,7 +48,7 @@ export class InvitesService {
       studentId: student.id,
       senderId: coach.id,
       senderName: coach.name,
-      content: `教练 ${coach.name} 向你发起了邀约，邀请码：${saved.code}`,
+      content: `Coach ${coach.name} has sent you an invitation, code: ${saved.code}`,
     });
 
     return saved;

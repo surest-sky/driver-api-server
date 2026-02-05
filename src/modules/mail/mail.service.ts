@@ -26,7 +26,7 @@ export class MailService {
     const pass = process.env.SMTP_PASS || defaults.pass;
 
     if (!user || !pass) {
-      this.logger.warn('SMTP_USER/SMTP_PASS 未配置，邮件发送可能会失败');
+      this.logger.warn('SMTP_USER/SMTP_PASS not configured, email sending may fail');
     }
 
     this.config = {
@@ -91,9 +91,9 @@ export class MailService {
         replyTo: options.replyTo,
       });
 
-      this.logger.log(`邮件已发送: messageId=${info.messageId}`);
+      this.logger.log(`Email sent: messageId=${info.messageId}`);
     } catch (error) {
-      this.logger.error('发送邮件失败', error instanceof Error ? error.stack : String(error));
+      this.logger.error('Failed to send email', error instanceof Error ? error.stack : String(error));
       throw error;
     }
   }
