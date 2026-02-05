@@ -11,13 +11,13 @@ import { RequestLoggerMiddleware } from './middleware/request-logger.middleware'
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // 启用自定义Socket.IO适配器
+  // Enable custom Socket.IO adapter
   app.useWebSocketAdapter(new SocketIOAdapter(app));
-  
-  // 启用CORS
+
+  // Enable CORS
   app.enableCors();
-  
-  // 禁用全局 ValidationPipe，因为它会错误地验证 query 参数
+
+  // Disable global ValidationPipe as it incorrectly validates query parameters
   // app.useGlobalPipes(new ValidationPipe({
   //   whitelist: true,
   //   transform: true,
@@ -26,13 +26,13 @@ async function bootstrap() {
   //   },
   // }));
   
-  // 注册请求日志中间件（在JSON解析之后）
+  // Register request logger middleware (after JSON parsing)
   app.use(new RequestLoggerMiddleware().use.bind(new RequestLoggerMiddleware()));
   app.setGlobalPrefix('api');
-  // 静态资源（本地文件）
+  // Static assets (local files)
   const dir = join(process.cwd(), 'uploads');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  // 通过 /static 前缀对外提供静态访问
+  // Serve static files via /static prefix
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const express = require('express');
   app.use('/static', express.static(dir, { maxAge: '7d' }));

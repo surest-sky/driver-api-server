@@ -18,7 +18,10 @@ interface UploadSessionMeta {
 
 @Injectable()
 export class UploadSessionService {
-  private readonly baseDir = join(process.cwd(), 'uploads');
+  private readonly baseDir = join(
+    process.env.UPLOAD_TMP_DIR || process.env.TMPDIR || '/tmp',
+    'uploads',
+  );
   private readonly chunkDir = join(this.baseDir, 'chunks');
   private readonly videoDir = join(this.baseDir, 'videos');
 
@@ -223,4 +226,3 @@ export class UploadSessionService {
     }
   }
 }
-

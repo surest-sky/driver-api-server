@@ -96,6 +96,11 @@ function filenameFactory(req: any, file: Express.Multer.File, cb: (e: any, filen
   cb(null, name + ext);
 }
 
+const uploadBaseDir = join(
+  process.env.UPLOAD_TMP_DIR || process.env.TMPDIR || '/tmp',
+  'uploads',
+);
+
 @ApiTags('uploads')
 @Controller('uploads')
 export class UploadsController {
@@ -120,7 +125,7 @@ export class UploadsController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: 'uploads',
+        destination: uploadBaseDir,
         filename: filenameFactory,
       }),
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
@@ -171,7 +176,7 @@ export class UploadsController {
       storage: diskStorage({
         destination: (req, _file, cb) => {
           const sessionId = req.params.sessionId;
-          const dir = join(process.cwd(), 'uploads', 'chunks', sessionId);
+          const dir = join(uploadBaseDir, 'chunks', sessionId);
           mkdirSync(dir, { recursive: true });
           cb(null, dir);
         },
@@ -240,7 +245,7 @@ export class UploadsController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: 'uploads',
+        destination: uploadBaseDir,
         filename: filenameFactory,
       }),
       limits: { fileSize: 5 * 1024 * 1024 },
