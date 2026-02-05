@@ -6,7 +6,10 @@ import * as path from 'path';
 @Injectable()
 export class RequestLoggerMiddleware implements NestMiddleware {
   private readonly logger = new Logger('RequestLogger');
-  private readonly logDir = path.join(process.cwd(), 'logs');
+  private readonly logDir = path.join(
+    process.env.LOG_DIR || process.env.TMPDIR || '/tmp',
+    'logs',
+  );
 
   constructor() {
     // 确保日志目录存在
