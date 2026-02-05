@@ -3,7 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
-import * as dayjs from "dayjs";
+import dayjs from "dayjs";
 import { User, UserRole } from "../users/user.entity";
 import { School } from "../schools/school.entity";
 import { MailService } from "../mail/mail.service";
