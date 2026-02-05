@@ -76,10 +76,23 @@
     }
 
     @keyframes float {
-      0%, 100% { transform: translate(0, 0) scale(1); }
-      25% { transform: translate(40px, 40px) scale(1.05); }
-      50% { transform: translate(0, 80px) scale(1); }
-      75% { transform: translate(-40px, 40px) scale(0.95); }
+
+      0%,
+      100% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      25% {
+        transform: translate(40px, 40px) scale(1.05);
+      }
+
+      50% {
+        transform: translate(0, 80px) scale(1);
+      }
+
+      75% {
+        transform: translate(-40px, 40px) scale(0.95);
+      }
     }
 
     .container {
@@ -171,7 +184,7 @@
       background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
       color: #0a0a0a;
       padding: 16px 40px;
-      border-radius: 30px;
+      border-radius: 7px;
       text-decoration: none;
       font-weight: 600;
       font-size: 13px;

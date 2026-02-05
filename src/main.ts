@@ -43,6 +43,8 @@ async function bootstrap() {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const express = require('express');
   app.use('/static', express.static(dir, { maxAge: '7d' }));
+  // Serve public folder for images
+  app.use(express.static(join(__dirname, '..', 'public')));
   // Swagger
   const config = new DocumentBuilder()
     .setTitle('Driver App API')
