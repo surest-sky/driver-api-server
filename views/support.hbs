@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Technical Support - DriveViewer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f5f7fa;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    header {
+      background: white;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 0;
+    }
+    .logo {
+      font-size: 24px;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .nav-links {
+      display: flex;
+      gap: 30px;
+    }
+    .nav-links a {
+      text-decoration: none;
+      color: #333;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+    .nav-links a:hover {
+      color: #667eea;
+    }
+    .content {
+      background: white;
+      margin: 40px auto;
+      padding: 60px;
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+    h1 {
+      font-size: 36px;
+      margin-bottom: 10px;
+      color: #667eea;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 40px;
+      font-size: 18px;
+    }
+    h2 {
+      font-size: 24px;
+      margin-top: 40px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    h3 {
+      font-size: 20px;
+      margin-top: 30px;
+      margin-bottom: 15px;
+      color: #555;
+    }
+    p {
+      margin-bottom: 15px;
+      color: #555;
+    }
+    ul, ol {
+      margin-left: 30px;
+      margin-bottom: 20px;
+    }
+    li {
+      margin-bottom: 10px;
+      color: #555;
+    }
+    .contact-box {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 15px;
+      margin-top: 40px;
+    }
+    .contact-box h3 {
+      color: white;
+      margin-top: 0;
+    }
+    .contact-box p {
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .contact-box a {
+      color: white;
+      text-decoration: underline;
+    }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+    }
+    footer {
+      text-align: center;
+      padding: 40px 0;
+      color: #666;
+    }
+    footer a {
+      color: #667eea;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <nav>
+        <div class="logo">🚗 DriveViewer</div>
+        <div class="nav-links">
+          <a href="/">Home</a>
+          <a href="/support">Support</a>
+          <a href="/privacy">Privacy</a>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="content">
+      <h1>Technical Support</h1>
+      <p class="subtitle">We're here to help you get the most out of DriveViewer.</p>
+
+      <h2>📱 App Installation & Setup</h2>
+      <h3>System Requirements</h3>
+      <ul>
+        <li>iOS 14.0 or later</li>
+        <li>Android 8.0 (API level 26) or later</li>
+        <li>Stable internet connection for video uploads</li>
+        <li>Camera and microphone permissions</li>
+      </ul>
+
+      <h3>Installing the App</h3>
+      <ol>
+        <li>Download DriveViewer from the App Store (iOS) or Google Play Store (Android)</li>
+        <li>Open the app and grant necessary permissions (camera, microphone, storage)</li>
+        <li>Sign up with your email address or log in if you already have an account</li>
+        <li>Complete your profile information</li>
+      </ol>
+
+      <h2>📹 Video Recording Issues</h2>
+      <h3>Camera Not Working</h3>
+      <ul>
+        <li>Check if camera permissions are granted in your device settings</li>
+        <li>Close other apps that may be using the camera</li>
+        <li>Restart the app and try again</li>
+        <li>Ensure your device has sufficient storage space</li>
+      </ul>
+
+      <h3>Video Upload Failures</h3>
+      <ul>
+        <li>Check your internet connection (Wi-Fi recommended for large videos)</li>
+        <li>Ensure you're logged in with a valid account</li>
+        <li>Videos must be in MP4 or MOV format</li>
+        <li>Maximum file size: 500MB per video</li>
+        <li>If the issue persists, try restarting the upload from the Uploads section</li>
+      </ul>
+
+      <h2>👤 Account & Login</h2>
+      <h3>Forgot Password</h3>
+      <ol>
+        <li>Tap "Forgot Password" on the login screen</li>
+        <li>Enter your registered email address</li>
+        <li>Check your email for password reset instructions</li>
+        <li>Create a new password and log in</li>
+      </ol>
+
+      <h3>Changing Your Role</h3>
+      <p>DriveViewer supports two user roles: Student and Coach. To switch between roles:</p>
+      <ol>
+        <li>Go to Settings from the main menu</li>
+        <li>Tap on your current role display</li>
+        <li>Select the role you want to switch to</li>
+      </ol>
+
+      <h2>📅 Booking & Appointments</h2>
+      <h3>Scheduling a Lesson</h3>
+      <ul>
+        <li>Navigate to the Calendar tab</li>
+        <li>Select your preferred date and time slot</li>
+        <li>Choose your coach (if applicable)</li>
+        <li>Confirm your booking</li>
+        <li>You'll receive a notification when the coach confirms</li>
+      </ul>
+
+      <h3>Cancellation Policy</h3>
+      <ul>
+        <li>Students must cancel at least 2 hours before the lesson start time</li>
+        <li>Coaches can cancel anytime (please be considerate)</li>
+        <li>Credits will be refunded upon cancellation</li>
+      </ul>
+
+      <h2>💬 Messages & Notifications</h2>
+      <h3>Not Receiving Notifications</h3>
+      <ul>
+        <li>Check if notifications are enabled in your device settings</li>
+        <li>Ensure the app has permission to send notifications</li>
+        <li>Check that Do Not Disturb mode is off</li>
+      </ul>
+
+      <h2>🔒 Privacy & Security</h3>
+      <p>Your data security is our top priority. For detailed information about how we protect your data, please see our <a href="/privacy">Privacy Policy</a>.</p>
+
+      <div class="contact-box">
+        <h3>📧 Still Need Help?</h3>
+        <p>If you couldn't find a solution to your problem, please contact our support team:</p>
+        <p><strong>Email:</strong> <a href="mailto:support@driveviewer.com">support@driveviewer.com</a></p>
+        <p><strong>Response Time:</strong> We typically respond within 24-48 hours on business days.</p>
+      </div>
+
+      <h2>🐛 Reporting Bugs</h2>
+      <p>Found a bug or have a suggestion? We'd love to hear from you!</p>
+      <p>Please include the following information when reporting an issue:</p>
+      <ul>
+        <li>Your device model and OS version</li>
+        <li>App version (found in Settings)</li>
+        <li>Steps to reproduce the issue</li>
+        <li>Screenshots or error messages (if applicable)</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    <p>&copy; 2025 DriveViewer. All rights reserved.</p>
+    <p>
+      <a href="/">Back to Home</a> |
+      <a href="/privacy">Privacy Policy</a>
+    </p>
+  </footer>
+</body>
+</html>

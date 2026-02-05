@@ -7,10 +7,17 @@ import { SocketIOAdapter } from './socket-io.adapter';
 import { join } from 'path';
 import * as fs from 'fs';
 import { RequestLoggerMiddleware } from './middleware/request-logger.middleware';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import * as hbs from 'hbs';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Configure hbs template engine
+  app.engine('hbs', hbs.__express);
+  app.setViewEngine('hbs');
+  app.setBaseViewsDir(join(__dirname, '..', 'views'));
+
   // Enable custom Socket.IO adapter
   app.useWebSocketAdapter(new SocketIOAdapter(app));
 
@@ -45,6 +52,26 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
+
+  // Setup page routes (outside /api prefix)
+  const httpAdapter = app.getHttpAdapter();
+  const instance = httpAdapter.getInstance();
+
+  // Home page
+  instance.get('/', (req: any, res: any) => {
+    res.render('index');
+  });
+
+  // Support page
+  instance.get('/support', (req: any, res: any) => {
+    res.render('support');
+  });
+
+  // Privacy page
+  instance.get('/privacy', (req: any, res: any) => {
+    res.render('privacy');
+  });
+
   const port = process.env.PORT ? Number(process.env.PORT) : 3007;
   const host = process.env.HOST || '0.0.0.0';
   await app.listen(port, host);
@@ -52,5 +79,7 @@ async function bootstrap() {
   console.log(`API listening on http://${host}:${port}/api`);
   // eslint-disable-next-line no-console
   console.log(`Socket.IO server running on http://${host}:${port}`);
+  // eslint-disable-next-line no-console
+  console.log(`Website available at http://${host}:${port}`);
 }
 bootstrap();
