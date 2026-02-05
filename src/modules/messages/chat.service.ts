@@ -5,7 +5,7 @@ import { Message, MessageType, MessageSender } from './message.entity';
 import dayjs from 'dayjs';
 
 /**
- * 消息类型枚举
+ * Message type enum
  */
 export enum AppointmentMessageType {
   created = 'created',
@@ -17,14 +17,14 @@ export enum AppointmentMessageType {
 }
 
 /**
- * 聊天服务 - 统一管理消息发送
+ * Chat Service - Unified message sending management
  *
- * 新架构：直接使用 coach_id 和 student_id，不需要 conversations 表
+ * New architecture: Direct use of coach_id and student_id, no conversations table needed
  *
- * 功能：
- * 1. 统一消息格式化逻辑（解决时区问题）
- * 2. 统一消息发送接口
- * 3. 支持预约相关消息
+ * Features:
+ * 1. Unified message formatting logic (solves timezone issues)
+ * 2. Unified message sending interface
+ * 3. Support for appointment-related messages
  */
 @Injectable()
 export class ChatService {
@@ -36,10 +36,10 @@ export class ChatService {
   ) {}
 
   /**
-   * 发送预约相关消息
+   * Send appointment-related message
    *
-   * @param params 消息参数
-   * @returns 发送的消息
+   * @param params Message parameters
+   * @returns Sent message
    */
   async sendAppointmentMessage(params: {
     coachId: number | string;
@@ -49,8 +49,8 @@ export class ChatService {
     type: AppointmentMessageType;
     startTime: Date;
     endTime: Date;
-    reason?: string; // 拒绝原因（可选）
-    initiator?: 'coach' | 'student'; // 发起者
+    reason?: string; // Rejection reason (optional)
+    initiator?: 'coach' | 'student'; // Initiator
   }) {
     console.log('[ChatService] sendAppointmentMessage called:', params);
     const content = this._formatAppointmentMessage(
@@ -64,7 +64,7 @@ export class ChatService {
 
     console.log('[ChatService] Formatted content:', content);
 
-    // 根据 initiator 设置 sender
+    // Set sender based on initiator
     const sender = params.initiator === 'student' ? MessageSender.student : MessageSender.coach;
     const senderId = sender === MessageSender.student ? params.studentId : params.coachId;
     const senderName = sender === MessageSender.student ? params.studentName : params.coachName;
@@ -82,10 +82,10 @@ export class ChatService {
   }
 
   /**
-   * 发送普通文本消息
+   * Send regular text message
    *
-   * @param params 消息参数
-   * @returns 发送的消息
+   * @param params Message parameters
+   * @returns Sent message
    */
   async sendMessage(params: {
     coachId: number | string;
@@ -101,10 +101,10 @@ export class ChatService {
     const senderId = Number(params.senderId);
 
     if (!Number.isFinite(coachId) || !Number.isFinite(studentId) || !Number.isFinite(senderId)) {
-      throw new Error('无效的用户 ID');
+      throw new Error('Invalid user ID');
     }
 
-    // 根据 senderId 判断 sender 角色
+    // Determine sender role based on senderId
     const sender = senderId === coachId ? MessageSender.coach : MessageSender.student;
 
     console.log('[ChatService] Creating message:', { coachId, studentId, sender, content: params.content, type: params.type });

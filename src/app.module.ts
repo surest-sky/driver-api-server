@@ -36,7 +36,7 @@ import { AccountSecurityModule } from "./modules/account-security/account-securi
             "error",
           ] as ("log" | "info" | "warn" | "error" | "query" | "schema" | "migration")[],
         };
-        // 显示关键连接参数，便于定位问题（不打印密码）
+        // Display key connection parameters for troubleshooting (without password)
         // eslint-disable-next-line no-console
         console.log("[TypeORM] config:", {
           host: cfg.host,

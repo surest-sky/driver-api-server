@@ -4,7 +4,7 @@ import { createPool } from "mysql2/promise";
 import * as dotenv from "dotenv";
 import { expand as dotenvExpand } from "dotenv-expand";
 
-// 读取 .env（支持 dotenv-expand）
+// Read .env (with dotenv-expand support)
 const env = dotenv.config();
 dotenvExpand(env);
 
@@ -24,11 +24,11 @@ async function main() {
     password,
     database,
     multipleStatements: true,
-    // MySQL 8 默认超时较短，适当调大连接超时
+    // MySQL 8 default timeout is short, increase connection timeout appropriately
     connectTimeout: 15_000,
   });
 
-  // 使用 sql 目录中的 schema 文件进行初始化（按文件名排序）
+  // Initialize using schema files from sql directory (sorted by filename)
   const sqlDir = path.join(__dirname, "..", "sql");
   if (!fs.existsSync(sqlDir)) {
     console.log("init-db: sql dir not found, skip");
@@ -46,14 +46,14 @@ async function main() {
   for (const f of files) {
     const p = path.join(sqlDir, f);
     const sql = fs.readFileSync(p, "utf-8");
-    // 跳过空文件
+    // Skip empty files
     if (!sql.trim()) continue;
     try {
       console.log("init-db: applying", f);
       await pool.query(sql);
       console.log("init-db: applied", f);
     } catch (e) {
-      // 如果重复建表或其他原因失败，打印并继续后续文件
+      // If failed due to duplicate table or other reasons, print and continue with remaining files
       console.warn("init-db: error in", f, "=>", (e as any).message);
     }
   }

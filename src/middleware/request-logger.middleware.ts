@@ -12,7 +12,7 @@ export class RequestLoggerMiddleware implements NestMiddleware {
   );
 
   constructor() {
-    // 确保日志目录存在
+    // Ensure log directory exists
     if (!fs.existsSync(this.logDir)) {
       fs.mkdirSync(this.logDir, { recursive: true });
     }
@@ -22,20 +22,20 @@ export class RequestLoggerMiddleware implements NestMiddleware {
     const startTime = Date.now();
     const timestamp = new Date().toISOString();
     const { method, originalUrl, ip, headers } = req;
-    
-    // 获取用户代理和真实IP
+
+    // Get user agent and real IP
     const userAgent = headers['user-agent'] || 'Unknown';
     const realIp = headers['x-forwarded-for'] || headers['x-real-ip'] || ip;
 
-    // 控制台日志
+    // Console log
     this.logger.log(`${method} ${originalUrl} - IP: ${realIp}`);
 
-    // 监听响应结束事件
+    // Listen for response finish event
     res.on('finish', () => {
       const duration = Date.now() - startTime;
       const { statusCode } = res;
 
-      // 创建请求日志对象（在响应结束时，req.body应该已经被解析）
+      // Create request log object (req.body should be parsed when response finishes)
       const requestLog = {
         timestamp,
         method,
@@ -50,12 +50,12 @@ export class RequestLoggerMiddleware implements NestMiddleware {
         responseTime: duration,
       };
 
-      // 控制台日志响应
+      // Console log response
       this.logger.log(
         `${method} ${originalUrl} - ${statusCode} - ${duration}ms - IP: ${realIp}`
       );
 
-      // 写入文件日志
+      // Write to file log
       this.writeToFile(requestLog);
     });
 
@@ -64,7 +64,7 @@ export class RequestLoggerMiddleware implements NestMiddleware {
 
   private filterSensitiveHeaders(headers: any): any {
     const filtered = { ...headers };
-    // 过滤敏感信息
+    // Filter sensitive information
     if (filtered.authorization) {
       filtered.authorization = '[FILTERED]';
     }
@@ -78,7 +78,7 @@ export class RequestLoggerMiddleware implements NestMiddleware {
     if (!data) return data;
     
     const filtered = { ...data };
-    // 过滤敏感字段
+    // Filter sensitive fields
     if (filtered.password) {
       filtered.password = '[FILTERED]';
     }
