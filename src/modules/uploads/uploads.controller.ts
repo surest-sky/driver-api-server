@@ -94,18 +94,9 @@ function filenameFactory(req: any, file: Express.Multer.File, cb: (e: any, filen
   const name = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
   const ext = extname(file.originalname || '') || '.bin';
   cb(null, name + ext);
-
-  [Nest] 3981 - 02 /05 / 2026, 3:09: 30 PM   ERROR[ExceptionsHandler](0, dayjs_1.default) is not a function
-    TypeError: (0 , dayjs_1.default) is not a function
-    at AuthService.buildAuthPayload(/Users/surest / www / driver / api - server / src / modules / auth / auth.service.ts: 251: 40)
-    at process.processTicksAndRejections(node: internal / process / task_queues: 105: 5)
-    at async / Users / surest / www / driver / api - server / node_modules / @nestjs / core / router / router - execution - context.js: 46: 28
 }
 
-const uploadBaseDir = join(
-  process.env.UPLOAD_TMP_DIR || process.env.TMPDIR || '/tmp',
-  'uploads',
-);
+const uploadBaseDir = process.env.UPLOAD_TMP_DIR || process.env.TMPDIR || '/tmp';
 
 @ApiTags('uploads')
 @Controller('uploads')

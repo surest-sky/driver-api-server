@@ -30,7 +30,7 @@ async function bootstrap() {
   app.use(new RequestLoggerMiddleware().use.bind(new RequestLoggerMiddleware()));
   app.setGlobalPrefix('api');
   // Static assets (local files)
-  const dir = join(process.cwd(), 'uploads');
+  const dir = process.env.UPLOAD_TMP_DIR || process.env.TMPDIR || '/tmp';
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   // Serve static files via /static prefix
   // eslint-disable-next-line @typescript-eslint/no-var-requires
