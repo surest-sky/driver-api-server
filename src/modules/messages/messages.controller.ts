@@ -36,7 +36,9 @@ export class MessagesController {
     const coachId = Number(req.user.sub);
 
     // 1. 获取当前教练的 school_id
-    const coach = await this.userRepo.findOne({ where: { id: coachId } });
+    const coach = await this.userRepo.findOne({
+      where: { id: coachId, deletedAt: IsNull() },
+    });
     if (!coach || !coach.schoolId) {
       return { items: [], total: 0 };
     }
@@ -46,6 +48,7 @@ export class MessagesController {
       .createQueryBuilder('u')
       .where('u.school_id = :schoolId', { schoolId: coach.schoolId })
       .andWhere('u.role = :role', { role: 'student' })
+      .andWhere('u.deleted_at IS NULL')
       .orderBy('u.createdAt', 'DESC')
       .getMany();
 
@@ -154,7 +157,9 @@ export class MessagesController {
     const studentId = Number(req.user.sub);
 
     // 1. 获取当前学员的 school_id
-    const student = await this.userRepo.findOne({ where: { id: studentId } });
+    const student = await this.userRepo.findOne({
+      where: { id: studentId, deletedAt: IsNull() },
+    });
     if (!student || !student.schoolId) {
       return { items: [], total: 0 };
     }
@@ -164,6 +169,7 @@ export class MessagesController {
       .createQueryBuilder('u')
       .where('u.school_id = :schoolId', { schoolId: student.schoolId })
       .andWhere('u.role = :role', { role: 'coach' })
+      .andWhere('u.deleted_at IS NULL')
       .orderBy('u.createdAt', 'DESC')
       .getMany();
 

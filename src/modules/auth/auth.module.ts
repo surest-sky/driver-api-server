@@ -9,12 +9,14 @@ import { UsersModule } from '../users/users.module';
 import { School } from '../schools/school.entity';
 import { MailModule } from '../mail/mail.module';
 import { PasswordResetStore } from './password-reset.store';
+import { AccountDeletionModule } from '../account-deletion/account-deletion.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, School]), 
     UsersModule,
     MailModule,
+    AccountDeletionModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({

@@ -61,6 +61,9 @@ export class User {
   @Column({ type: 'varchar', length: 255, nullable: true, name: 'location' })
   location!: string | null;
 
+  @Column({ type: 'datetime', nullable: true, name: 'deleted_at' })
+  deletedAt!: Date | null;
+
   @ManyToOne(() => School)
   @JoinColumn({ name: 'school_id' })
   school!: School;

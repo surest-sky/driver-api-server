@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, IsNull, Repository } from 'typeorm';
 import { User, UserRole } from './user.entity';
 import { StudentCoachRelation, RelationStatus } from './student-coach-relation.entity';
 import { School } from '../schools/school.entity';
@@ -16,11 +16,17 @@ export class UsersService {
   ) {}
 
   findByEmail(email: string) {
-    return this.repo.findOne({ where: { email }, relations: ['school'] });
+    return this.repo.findOne({
+      where: { email, deletedAt: IsNull() },
+      relations: ['school'],
+    });
   }
 
   findById(id: number) {
-    return this.repo.findOne({ where: { id }, relations: ['school'] });
+    return this.repo.findOne({
+      where: { id, deletedAt: IsNull() },
+      relations: ['school'],
+    });
   }
 
   async createUser(data: Partial<User>) {
@@ -29,7 +35,7 @@ export class UsersService {
   }
 
   async updateUser(id: number, patch: Partial<User>) {
-    await this.repo.update({ id }, patch);
+    await this.repo.update({ id, deletedAt: IsNull() }, patch);
     return this.findById(id);
   }
 
@@ -37,6 +43,7 @@ export class UsersService {
     const qb = this.repo.createQueryBuilder('u')
       .where('u.role = :role', { role: UserRole.coach })
       .andWhere('u.schoolId = :schoolId', { schoolId })
+      .andWhere('u.deleted_at IS NULL')
       .orderBy('u.isManager', 'DESC')
       .addOrderBy('u.updatedAt', 'DESC');
     if (q && q.trim()) {
@@ -48,7 +55,10 @@ export class UsersService {
   }
 
   async findCoachById(id: number) {
-    return this.repo.findOne({ where: { id, role: UserRole.coach }, relations: ['school'] });
+    return this.repo.findOne({
+      where: { id, role: UserRole.coach, deletedAt: IsNull() },
+      relations: ['school'],
+    });
   }
 
   findSchoolById(id: number) {
@@ -59,9 +69,9 @@ export class UsersService {
     await this.repo.createQueryBuilder()
       .update(User)
       .set({ isManager: false })
-      .where('schoolId = :schoolId AND role = :role', { schoolId, role: UserRole.coach })
+      .where('schoolId = :schoolId AND role = :role AND deleted_at IS NULL', { schoolId, role: UserRole.coach })
       .execute();
-    await this.repo.update({ id: coachId }, { isManager: true });
+    await this.repo.update({ id: coachId, deletedAt: IsNull() }, { isManager: true });
     return this.findCoachById(coachId);
   }
 
@@ -69,7 +79,8 @@ export class UsersService {
     return this.repo.findOne({
       where: {
         role: UserRole.coach,
-        schoolId: schoolId
+        schoolId: schoolId,
+        deletedAt: IsNull(),
       }
     });
   }
@@ -79,7 +90,8 @@ export class UsersService {
       where: { studentId, status: RelationStatus.active },
       relations: ['coach']
     });
-    return relation?.coach;
+    if (!relation?.coach) return null;
+    return relation.coach.deletedAt ? null : relation.coach;
   }
 
   async assignStudentToCoach(studentId: number, coachId: number) {
@@ -103,7 +115,7 @@ export class UsersService {
   }
 
   async updateCoach(coachId: number, patch: Partial<User>) {
-    await this.repo.update({ id: coachId, role: UserRole.coach }, patch);
+    await this.repo.update({ id: coachId, role: UserRole.coach, deletedAt: IsNull() }, patch);
     return this.findCoachById(coachId);
   }
 
@@ -112,6 +124,7 @@ export class UsersService {
       .createQueryBuilder('u')
       .where('u.role = :role', { role: UserRole.student })
       .andWhere('u.schoolId = :schoolId', { schoolId })
+      .andWhere('u.deleted_at IS NULL')
       .orderBy('u.updatedAt', 'DESC');
 
     if (q && q.trim()) {
@@ -135,7 +148,7 @@ export class UsersService {
     }
 
     // 更新用户的学校绑定
-    await this.repo.update({ id: userId }, {
+    await this.repo.update({ id: userId, deletedAt: IsNull() }, {
       schoolId: school.id,
       pendingSchoolCode: null  // 清除待定学校代码
     });
@@ -146,7 +159,7 @@ export class UsersService {
 
   async unbindStudentFromSchool(studentId: number, schoolId: number) {
     const student = await this.repo.findOne({
-      where: { id: studentId, role: UserRole.student },
+      where: { id: studentId, role: UserRole.student, deletedAt: IsNull() },
     });
     if (!student) {
       throw new BadRequestException('Student not found');

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
+import { ScheduleModule } from "@nestjs/schedule";
 import { UsersModule } from "./modules/users/users.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { PoliciesModule } from "./modules/policies/policies.module";
@@ -17,10 +18,12 @@ import { TeachingStatsModule } from "./modules/teaching-stats/teaching-stats.mod
 import { AppUpdatesModule } from "./modules/app-updates/app-updates.module";
 import { MailModule } from "./modules/mail/mail.module";
 import { AccountSecurityModule } from "./modules/account-security/account-security.module";
+import { AccountDeletionModule } from "./modules/account-deletion/account-deletion.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       useFactory: () => {
         const cfg = {
@@ -67,6 +70,7 @@ import { AccountSecurityModule } from "./modules/account-security/account-securi
     AppUpdatesModule,
     MailModule,
     AccountSecurityModule,
+    AccountDeletionModule,
   ],
 })
 export class AppModule {}

@@ -72,6 +72,11 @@ async function bootstrap() {
     res.render('privacy');
   });
 
+  // Download page
+  instance.get('/download', (req: any, res: any) => {
+    res.render('download');
+  });
+
   const port = process.env.PORT ? Number(process.env.PORT) : 3007;
   const host = process.env.HOST || '0.0.0.0';
   await app.listen(port, host);

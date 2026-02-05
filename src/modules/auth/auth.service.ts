@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { IsNull, Repository } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import dayjs from "dayjs";
@@ -8,6 +8,7 @@ import { User, UserRole } from "../users/user.entity";
 import { School } from "../schools/school.entity";
 import { MailService } from "../mail/mail.service";
 import { PasswordResetStore } from "./password-reset.store";
+import { AccountDeletionService } from "../account-deletion/account-deletion.service";
 
 interface RegisterDto {
   email: string;
@@ -30,11 +31,15 @@ export class AuthService {
     @InjectRepository(School) private readonly schoolRepo: Repository<School>,
     private readonly jwt: JwtService,
     private readonly mail: MailService,
-    private readonly passwordResetStore: PasswordResetStore
+    private readonly passwordResetStore: PasswordResetStore,
+    private readonly accountDeletion: AccountDeletionService
   ) {}
 
   async login(email: string, password: string) {
-    const user = await this.repo.findOne({ where: { email }, relations: ["school"] });
+    const user = await this.repo.findOne({
+      where: { email, deletedAt: IsNull() },
+      relations: ["school"],
+    });
     if (!user) throw new UnauthorizedException("Invalid credentials");
     // Seed compatibility: if no hash stored, accept default '123456' and set hash
     if (!user.passwordHash) {
@@ -47,12 +52,20 @@ export class AuthService {
       if (!ok) throw new UnauthorizedException("Invalid credentials1");
     }
 
-    return this.buildAuthPayload(user);
+    const payload = await this.buildAuthPayload(user);
+    const pending = await this.accountDeletion.getPending(user.id);
+    return {
+      ...payload,
+      pendingDeletion: Boolean(pending),
+      scheduledAt: pending?.scheduledAt ?? null,
+    };
   }
 
   async register(dto: RegisterDto) {
     const normalizedEmail = dto.email.trim().toLowerCase();
-    const existing = await this.repo.findOne({ where: { email: normalizedEmail } });
+    const existing = await this.repo.findOne({
+      where: { email: normalizedEmail, deletedAt: IsNull() },
+    });
     if (existing) {
       throw new BadRequestException("Email already registered");
     }
@@ -103,7 +116,9 @@ export class AuthService {
       throw new BadRequestException("Email is required");
     }
 
-    const user = await this.repo.findOne({ where: { email: normalizedEmail } });
+    const user = await this.repo.findOne({
+      where: { email: normalizedEmail, deletedAt: IsNull() },
+    });
     if (!user) {
       return { ok: true };
     }
@@ -179,7 +194,9 @@ export class AuthService {
       throw new BadRequestException("Invalid verification code");
     }
 
-    const user = await this.repo.findOne({ where: { email: normalizedEmail } });
+    const user = await this.repo.findOne({
+      where: { email: normalizedEmail, deletedAt: IsNull() },
+    });
     if (!user) {
       throw new BadRequestException("Invalid verification code");
     }
