@@ -1,6 +1,12 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-export enum MessageType { text = 'text', image = 'image', file = 'file', system = 'system' }
+export enum MessageType {
+  text = 'text',
+  image = 'image',
+  file = 'file',
+  system = 'system',
+  course = 'course',
+}
 
 /**
  * 发送者角色枚举

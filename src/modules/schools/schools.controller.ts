@@ -84,12 +84,12 @@ export class SchoolsPublicController {
 
   @Get('search')
   async search(@Query('q') keyword?: string, @Query('limit') limit?: string) {
-    if (!keyword || !keyword.trim()) {
-      return [];
-    }
-
     const parsedLimit = limit ? parseInt(limit, 10) : 20;
-    const schools = await this.svc.searchSchools(keyword, parsedLimit);
+    const normalizedLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 20;
+    const normalizedKeyword = keyword?.trim() ?? '';
+    const schools = normalizedKeyword.length === 0
+      ? await this.svc.getRandomSchools(Math.min(normalizedLimit, 50))
+      : await this.svc.searchSchools(normalizedKeyword, Math.min(normalizedLimit, 50));
 
     return schools.map((school) => ({
       id: school.id,

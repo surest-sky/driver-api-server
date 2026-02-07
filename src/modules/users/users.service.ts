@@ -5,6 +5,9 @@ import { User, UserRole } from './user.entity';
 import { StudentCoachRelation, RelationStatus } from './student-coach-relation.entity';
 import { School } from '../schools/school.entity';
 import { CreditRecord } from './credit-record.entity';
+import { Invite, InviteStatus } from '../invites/invite.entity';
+
+const NEVER_EXPIRES_AT = new Date('2099-12-31T23:59:59.000Z');
 
 @Injectable()
 export class UsersService {
@@ -12,7 +15,8 @@ export class UsersService {
     @InjectRepository(User) private readonly repo: Repository<User>,
     @InjectRepository(StudentCoachRelation) private readonly relationRepo: Repository<StudentCoachRelation>,
     @InjectRepository(School) private readonly schoolRepo: Repository<School>,
-    @InjectRepository(CreditRecord) private readonly creditRecordRepo: Repository<CreditRecord>
+    @InjectRepository(CreditRecord) private readonly creditRecordRepo: Repository<CreditRecord>,
+    @InjectRepository(Invite) private readonly inviteRepo: Repository<Invite>,
   ) {}
 
   findByEmail(email: string) {
@@ -138,6 +142,14 @@ export class UsersService {
   }
 
   async bindSchoolToUser(userId: number, drivingSchoolCode: string) {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    if (user.schoolId != null) {
+      throw new BadRequestException('User already bound to a school');
+    }
+
     // 查找学校
     const school = await this.schoolRepo.findOne({
       where: { drivingSchoolCode: drivingSchoolCode.trim().toUpperCase() }
@@ -157,6 +169,28 @@ export class UsersService {
     return this.findById(userId);
   }
 
+  async bindSchoolToUserBySchoolId(userId: number, schoolId: number) {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    if (user.schoolId != null) {
+      throw new BadRequestException('User already bound to a school');
+    }
+
+    const school = await this.schoolRepo.findOne({ where: { id: schoolId } });
+    if (!school) {
+      throw new BadRequestException('School does not exist');
+    }
+
+    await this.repo.update(
+      { id: userId, deletedAt: IsNull() },
+      { schoolId: school.id, pendingSchoolCode: null },
+    );
+
+    return this.findById(userId);
+  }
+
   async unbindStudentFromSchool(studentId: number, schoolId: number) {
     const student = await this.repo.findOne({
       where: { id: studentId, role: UserRole.student, deletedAt: IsNull() },
@@ -172,6 +206,30 @@ export class UsersService {
       { schoolId: null, pendingSchoolCode: null },
     );
     return this.findById(studentId);
+  }
+
+  async createInviteForStudentEmail(data: {
+    inviterId: number;
+    schoolId: number;
+    inviteeEmail: string;
+    role?: 'student' | 'coach';
+    expiresInDays?: number;
+  }) {
+    const role = data.role ?? 'student';
+    const expiresAt = NEVER_EXPIRES_AT;
+
+    const invite = this.inviteRepo.create({
+      code: await this._generateUniqueInviteCode(),
+      inviterId: data.inviterId,
+      inviteeEmail: data.inviteeEmail.trim().toLowerCase(),
+      schoolId: data.schoolId,
+      role,
+      status: InviteStatus.pending,
+      expiresAt,
+      usedAt: null,
+    });
+
+    return this.inviteRepo.save(invite);
   }
 
   async getCreditRecords(studentId: number, page: number, pageSize: number) {
@@ -274,5 +332,22 @@ export class UsersService {
 
   private _roundCredits(value: number) {
     return Number(Number(value || 0).toFixed(2));
+  }
+
+  private async _generateUniqueInviteCode() {
+    const dict = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      let code = '';
+      for (let i = 0; i < 10; i++) {
+        code += dict[Math.floor(Math.random() * dict.length)];
+      }
+      const exists = await this.inviteRepo.findOne({ where: { code } });
+      if (!exists) {
+        return code;
+      }
+    }
+
+    throw new Error('Failed to generate unique invite code');
   }
 }

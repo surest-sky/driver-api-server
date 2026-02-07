@@ -6,10 +6,11 @@ import { User } from './user.entity';
 import { StudentCoachRelation } from './student-coach-relation.entity';
 import { CreditRecord } from './credit-record.entity';
 import { School } from '../schools/school.entity';
+import { Invite } from '../invites/invite.entity';
 import { MailModule } from '../mail/mail.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, StudentCoachRelation, School, CreditRecord]), MailModule],
+  imports: [TypeOrmModule.forFeature([User, StudentCoachRelation, School, CreditRecord, Invite]), MailModule],
   providers: [UsersService],
   controllers: [UsersController],
   exports: [UsersService],

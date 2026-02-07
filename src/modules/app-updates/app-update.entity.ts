@@ -22,8 +22,14 @@ export class AppUpdate {
   @Column({ name: 'version_code', type: 'int', default: 1 })
   versionCode!: number;
 
-  @Column({ name: 'download_url', type: 'varchar', length: 512 })
-  downloadUrl!: string;
+  @Column({ name: 'download_url', type: 'varchar', length: 512, nullable: true })
+  downloadUrl?: string | null;
+
+  @Column({ name: 'play_store_url', type: 'varchar', length: 512, nullable: true })
+  playStoreUrl?: string | null;
+
+  @Column({ name: 'app_store_url', type: 'varchar', length: 512, nullable: true })
+  appStoreUrl?: string | null;
 
   @Column({ name: 'release_notes', type: 'text', nullable: true })
   releaseNotes?: string | null;

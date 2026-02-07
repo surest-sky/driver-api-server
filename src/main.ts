@@ -9,6 +9,12 @@ import * as fs from 'fs';
 import { RequestLoggerMiddleware } from './middleware/request-logger.middleware';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as hbs from 'hbs';
+import { DataSource } from 'typeorm';
+import { AppPlatform, AppUpdate } from './modules/app-updates/app-update.entity';
+import {
+  APP_UPDATE_APP_STORE_URL,
+  APP_UPDATE_PLAY_STORE_URL,
+} from './modules/app-updates/app-update.constants';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -75,8 +81,32 @@ async function bootstrap() {
   });
 
   // Download page
-  instance.get('/download', (req: any, res: any) => {
-    res.render('download');
+  instance.get('/download', async (req: any, res: any) => {
+    const rawCode = typeof req.query?.code === 'string' ? req.query.code : '';
+    const inviteCode = rawCode.trim().toUpperCase();
+    const safeCode = /^[A-Z0-9]{6,64}$/.test(inviteCode) ? inviteCode : '';
+    let apkDownloadUrl = '#';
+    try {
+      const dataSource = app.get(DataSource);
+      const latestAndroid = await dataSource.getRepository(AppUpdate).findOne({
+        where: { platform: AppPlatform.ANDROID, isActive: true },
+        order: { versionCode: 'DESC', createdAt: 'DESC' },
+      });
+      const latestUrl = latestAndroid?.downloadUrl?.trim() ?? '';
+      if (latestUrl) {
+        apkDownloadUrl = latestUrl;
+      }
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('download page: failed to resolve latest apk url', error);
+    }
+
+    res.render('download', {
+      inviteCode: safeCode,
+      appStoreUrl: APP_UPDATE_APP_STORE_URL,
+      playStoreUrl: APP_UPDATE_PLAY_STORE_URL,
+      apkDownloadUrl,
+    });
   });
 
   const port = process.env.PORT ? Number(process.env.PORT) : 3007;

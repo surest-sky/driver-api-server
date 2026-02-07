@@ -201,7 +201,7 @@ create table driver_app.messages
     receiver_id     bigint                                                             not null comment '接收者ID，外键关联users表',
     receiver_name   varchar(191)                                                       not null comment '接收者姓名',
     content         text                                                               not null comment '消息内容',
-    message_type    enum ('text', 'image', 'file', 'system') default 'text'            not null comment '消息类型：文本/图片/文件/系统消息',
+    message_type    enum ('text', 'image', 'file', 'system', 'course') default 'text'            not null comment '消息类型：文本/图片/文件/系统消息/课程',
     read_at         datetime                                                           null comment '阅读时间',
     created_at      datetime                                 default CURRENT_TIMESTAMP not null comment '创建时间',
     constraint messages_ibfk_1
@@ -494,3 +494,25 @@ create index idx_video_favorites_created_at
 
 create index idx_video_favorites_video_id
     on driver_app.video_favorites (video_id);
+
+create table driver_app.app_updates
+(
+    id             bigint auto_increment comment '版本记录ID'
+        primary key,
+    platform       enum ('ios', 'android')                  not null comment '平台',
+    version        varchar(32)                              not null comment '版本号，如 1.0.0',
+    build_number   int            default 1                 not null comment '构建号',
+    version_code   int            default 1                 not null comment '版本码',
+    download_url   varchar(512)                             null comment '安卓 APK 下载地址',
+    play_store_url varchar(512)                             null comment 'Google Play 地址',
+    app_store_url  varchar(512)                             null comment 'App Store 地址',
+    release_notes  text                                     null comment '更新说明',
+    force_update   tinyint(1)    default 0                 not null comment '是否强制更新',
+    is_active      tinyint(1)    default 1                 not null comment '是否参与更新检测',
+    created_at     datetime       default CURRENT_TIMESTAMP not null comment '创建时间',
+    updated_at     datetime       default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间'
+)
+    comment 'App 版本更新表' charset = utf8mb4;
+
+create index idx_app_updates_platform_active_code
+    on driver_app.app_updates (platform, is_active, version_code);

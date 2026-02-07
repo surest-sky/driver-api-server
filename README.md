@@ -65,7 +65,12 @@ App Updates
 
 - GET `/api/app-updates/check?platform=ios&currentVersion=1.0.0&currentBuild=1`
   - `platform`: `ios` 或 `android`
-  - 返回 `{ hasUpdate, forceUpdate, latest: { version, buildNumber, versionCode, downloadUrl, releaseNotes } }`
+- 返回 `{ hasUpdate, forceUpdate, latest: { version, buildNumber, versionCode, downloadUrl, playStoreUrl, appStoreUrl, releaseNotes } }`
+- GET `/api/app-updates/latest?platform=android`
+  - 返回指定平台最新版本记录（含 `forceUpdate`、商店地址与下载地址）
+- POST `/api/app-updates/publish`
+  - 请求体示例：
+    `{ platform, version, versionCode, buildNumber, releaseNotes, forceUpdate, downloadUrl?, playStoreUrl?, appStoreUrl? }`
 
 ## Notes
 

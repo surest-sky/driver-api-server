@@ -186,6 +186,7 @@ export class AppointmentsService {
         await this.chat.sendAppointmentMessage({
           coachId: coach.id,
           studentId: student.id,
+          appointmentId: saved.id,
           coachName: coach.name,
           studentName: student.name,
           type: AppointmentMessageType.created,
@@ -204,6 +205,7 @@ export class AppointmentsService {
         await this.chat.sendAppointmentMessage({
           coachId: coach.id,
           studentId: student.id,
+          appointmentId: saved.id,
           coachName: coach.name,
           studentName: student.name,
           type: AppointmentMessageType.created,
@@ -260,6 +262,7 @@ export class AppointmentsService {
         await this.chat.sendAppointmentMessage({
           coachId: appointment.coach.id,
           studentId: appointment.student.id,
+          appointmentId: appointment.id,
           coachName: appointment.coach.name,
           studentName: appointment.student.name,
           type: AppointmentMessageType.confirmed,
@@ -308,6 +311,7 @@ export class AppointmentsService {
         await this.chat.sendAppointmentMessage({
           coachId: appointment.coach.id,
           studentId: appointment.student.id,
+          appointmentId: appointment.id,
           coachName: appointment.coach.name,
           studentName: appointment.student.name,
           type: AppointmentMessageType.rejected,
@@ -376,6 +380,7 @@ export class AppointmentsService {
         await this.chat.sendAppointmentMessage({
           coachId: appointment.coach.id,
           studentId: appointment.student.id,
+          appointmentId: appointment.id,
           coachName: appointment.coach.name,
           studentName: appointment.student.name,
           type: AppointmentMessageType.cancelled,
@@ -414,6 +419,7 @@ export class AppointmentsService {
         await this.chat.sendAppointmentMessage({
           coachId: appointment.coach.id,
           studentId: appointment.student.id,
+          appointmentId: appointment.id,
           coachName: appointment.coach.name,
           studentName: appointment.student.name,
           type: AppointmentMessageType.completed,
@@ -465,6 +471,7 @@ export class AppointmentsService {
         await this.chat.sendAppointmentMessage({
           coachId: appointment.coach.id,
           studentId: appointment.student.id,
+          appointmentId: appointment.id,
           coachName: appointment.coach.name,
           studentName: appointment.student.name,
           type: AppointmentMessageType.rescheduled,

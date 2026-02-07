@@ -5,13 +5,16 @@ APK 上传脚本
 1. 读取 Flutter 构建的 APK 文件
 2. 上传到 AWS S3
 3. 获取公开访问链接
-4. 更新 download.hbs 中的下载链接
-5. 推送代码到 Git
+4. 发布版本信息到 API
 """
 
 import os
-import re
 import sys
+import json
+import shutil
+import subprocess
+import urllib.error
+import urllib.request
 from pathlib import Path
 from datetime import datetime
 
@@ -27,9 +30,8 @@ except ImportError:
 
 # 配置路径
 APK_PATH = Path("/Users/surest/www/driver/driver_video_app/build/app/outputs/flutter-apk/app-release.apk")
+FLUTTER_APP_DIR = Path("/Users/surest/www/driver/driver_video_app")
 ENV_PATH = Path("/Users/surest/www/driver/api-server/.env")
-DOWNLOAD_HBS_PATH = Path("/Users/surest/www/driver/api-server/views/download.hbs")
-API_SERVER_PATH = Path("/Users/surest/www/driver/api-server")
 
 
 def load_env(env_path: Path) -> dict:
@@ -49,12 +51,56 @@ def load_env(env_path: Path) -> dict:
     return env_vars
 
 
-def check_apk_exists(apk_path: Path) -> None:
-    """检查 APK 文件是否存在"""
-    if not apk_path.exists():
-        print(f"错误: APK 文件不存在: {apk_path}")
-        print("请先构建 APK: cd driver_video_app && flutter build apk --release")
+def _run_build(command: list[str], cwd: Path) -> bool:
+    print(f"尝试执行构建命令: {' '.join(command)}")
+    try:
+        subprocess.run(command, cwd=str(cwd), check=True)
+        return True
+    except FileNotFoundError:
+        print(f"命令不存在: {command[0]}")
+        return False
+    except subprocess.CalledProcessError as e:
+        print(f"构建失败，退出码: {e.returncode}")
+        return False
+
+
+def build_apk_if_missing(apk_path: Path) -> None:
+    """APK 不存在时自动构建。"""
+    if apk_path.exists():
+        return
+
+    print(f"未找到 APK: {apk_path}")
+    print("开始自动构建 APK...")
+
+    if not FLUTTER_APP_DIR.exists():
+        print(f"错误: Flutter 项目目录不存在: {FLUTTER_APP_DIR}")
         sys.exit(1)
+
+    build_ok = False
+
+    if shutil.which("flutter"):
+        build_ok = _run_build(["flutter", "build", "apk", "--release"], FLUTTER_APP_DIR)
+
+    if not build_ok and shutil.which("fvm"):
+        print("尝试使用 fvm 构建...")
+        build_ok = _run_build(["fvm", "flutter", "build", "apk", "--release"], FLUTTER_APP_DIR)
+
+    if not build_ok:
+        print("错误: 自动构建 APK 失败。")
+        print("请手动执行: cd driver_video_app && flutter build apk --release")
+        sys.exit(1)
+
+    if not apk_path.exists():
+        print("错误: 构建命令执行完成，但未找到 APK 输出文件。")
+        print(f"期望路径: {apk_path}")
+        sys.exit(1)
+
+    print("APK 自动构建成功。")
+
+
+def check_apk_exists(apk_path: Path) -> None:
+    """检查 APK 文件是否存在，不存在则自动构建。"""
+    build_apk_if_missing(apk_path)
 
     apk_size = apk_path.stat().st_size
     size_mb = apk_size / (1024 * 1024)
@@ -141,78 +187,103 @@ def upload_to_s3(apk_path: Path, env_vars: dict) -> str:
         sys.exit(1)
 
 
-def update_download_hbs(hbs_path: Path, apk_url: str) -> None:
-    """更新 download.hbs 中的 APK 下载链接"""
-    if not hbs_path.exists():
-        print(f"错误: download.hbs 文件不存在: {hbs_path}")
-        sys.exit(1)
-
-    with open(hbs_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    # 查找 APK Download 的 a 标签并更新 href
-    # 匹配 APK Direct 或 APK Download 卡片中的链接
-    pattern = r'(<!-- APK Direct -->.*?<a href=)("[^"]*"|\'[^\']*\')(.*?>.*?Download APK</a>)'
-
-    def replace_link(match):
-        return f'{match.group(1)}"{apk_url}"{match.group(3)}'
-
-    new_content, count = re.subn(pattern, replace_link, content, flags=re.DOTALL)
-
-    if count == 0:
-        print("警告: 未找到 APK 下载链接，尝试简单替换...")
-        # 备用方案：简单替换 href="#"
-        new_content = re.sub(
-            r'(<!-- APK Direct -->.*?<a href=)"#"',
-            f'\\1"{apk_url}"',
-            new_content,
-            flags=re.DOTALL
-        )
-
-    with open(hbs_path, 'w', encoding='utf-8') as f:
-        f.write(new_content)
-
-    print(f"\n已更新 download.hbs")
-    print(f"  新链接: {apk_url}")
+def prompt_non_empty(prompt: str) -> str:
+    while True:
+        value = input(prompt).strip()
+        if value:
+            return value
+        print("输入不能为空，请重试。")
 
 
-def git_commit_and_push(repo_path: Path, apk_url: str) -> None:
-    """提交并推送代码到 Git"""
-    print(f"\n提交代码到 Git...")
+def prompt_positive_int(prompt: str) -> int:
+    while True:
+        value = input(prompt).strip()
+        if not value:
+            print("输入不能为空，请重试。")
+            continue
+        if value.isdigit() and int(value) > 0:
+            return int(value)
+        print("请输入正整数。")
 
-    import subprocess
 
+def prompt_yes_no(prompt: str, default: bool = False) -> bool:
+    suffix = "Y/n" if default else "y/N"
+    while True:
+        value = input(f"{prompt} ({suffix}): ").strip().lower()
+        if not value:
+            return default
+        if value in ("y", "yes", "1", "true"):
+            return True
+        if value in ("n", "no", "0", "false"):
+            return False
+        print("请输入 y 或 n。")
+
+
+def prompt_release_notes() -> str:
+    print("\n请输入更新内容（可多行，输入单独一行 END 结束）：")
+    lines = []
+    while True:
+        line = input()
+        if line.strip() == "END":
+            break
+        lines.append(line.rstrip())
+    return "\n".join(lines).strip()
+
+
+def collect_publish_payload(apk_url: str) -> dict:
+    print("\n请填写版本发布信息：")
+    version = prompt_non_empty("版本号（例如 1.1.6）: ")
+    version_code = prompt_positive_int("versionCode（正整数）: ")
+    build_number = prompt_positive_int("buildNumber（正整数）: ")
+    release_notes = prompt_release_notes()
+    force_update = prompt_yes_no("是否强制更新", default=False)
+
+    payload = {
+        "platform": "android",
+        "version": version,
+        "versionCode": version_code,
+        "buildNumber": build_number,
+        "releaseNotes": release_notes,
+        "forceUpdate": force_update,
+        "downloadUrl": apk_url,
+        "isActive": True,
+    }
+    return payload
+
+
+def publish_update(env_vars: dict, payload: dict) -> None:
+    base_url = (env_vars.get("APP_UPDATE_API_BASE_URL") or "").strip() or "http://127.0.0.1:3008"
+    publish_path = (env_vars.get("APP_UPDATE_PUBLISH_PATH") or "").strip() or "/api/app-updates/publish"
+    api_token = (env_vars.get("APP_UPDATE_API_TOKEN") or "").strip()
+    url = f"{base_url.rstrip('/')}/{publish_path.lstrip('/')}"
+
+    print("\n发布版本信息到 API...")
+    print(f"  URL: {url}")
+
+    body = json.dumps(payload).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+    }
+    if api_token:
+        headers["Authorization"] = f"Bearer {api_token}"
+
+    request = urllib.request.Request(url=url, data=body, headers=headers, method="POST")
     try:
-        # 切换到 api-server 目录
-        os.chdir(repo_path)
-
-        # 检查 git 状态
-        result = subprocess.run(
-            ['git', 'status', '--short'],
-            capture_output=True,
-            text=True
-        )
-
-        if not result.stdout.strip():
-            print("没有需要提交的更改")
-            return
-
-        # 添加文件
-        subprocess.run(['git', 'add', 'views/download.hbs'], check=True)
-
-        # 提交
-        commit_message = f"chore: update APK download link\n\nAPK URL: {apk_url}"
-        subprocess.run(['git', 'commit', '-m', commit_message], check=True)
-
-        # 推送
-        print("推送到远程仓库...")
-        subprocess.run(['git', 'push'], check=True)
-
-        print("代码已推送!")
-
-    except subprocess.CalledProcessError as e:
-        print(f"警告: Git 操作失败: {e}")
-        print("请手动提交并推送代码")
+        with urllib.request.urlopen(request, timeout=20) as response:
+            raw = response.read().decode("utf-8")
+            data = json.loads(raw) if raw else {}
+            print("版本发布成功!")
+            print(f"  id: {data.get('id')}")
+            print(f"  version: {data.get('version')}")
+            print(f"  forceUpdate: {data.get('forceUpdate')}")
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="ignore")
+        print(f"错误: 版本发布失败，HTTP {e.code}")
+        print(detail or e.reason)
+        sys.exit(1)
+    except urllib.error.URLError as e:
+        print(f"错误: 无法连接版本发布接口: {e.reason}")
+        sys.exit(1)
 
 
 def main():
@@ -230,11 +301,9 @@ def main():
     # 3. 上传到 S3
     apk_url = upload_to_s3(APK_PATH, env_vars)
 
-    # 4. 更新 download.hbs
-    update_download_hbs(DOWNLOAD_HBS_PATH, apk_url)
-
-    # 5. Git 提交和推送
-    git_commit_and_push(API_SERVER_PATH, apk_url)
+    # 4. 发布版本信息
+    payload = collect_publish_payload(apk_url)
+    publish_update(env_vars, payload)
 
     print("\n" + "=" * 50)
     print("完成!")

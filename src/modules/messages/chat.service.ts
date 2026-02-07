@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Message, MessageType, MessageSender } from './message.entity';
-import dayjs from 'dayjs';
 
 /**
  * Message type enum
@@ -44,6 +43,7 @@ export class ChatService {
   async sendAppointmentMessage(params: {
     coachId: number | string;
     studentId: number | string;
+    appointmentId: number | string;
     coachName: string;
     studentName: string;
     type: AppointmentMessageType;
@@ -53,16 +53,12 @@ export class ChatService {
     initiator?: 'coach' | 'student'; // Initiator
   }) {
     console.log('[ChatService] sendAppointmentMessage called:', params);
-    const content = this._formatAppointmentMessage(
-      params.type,
-      params.startTime,
-      params.endTime,
-      params.studentName,
-      params.coachName,
-      params.reason,
-    );
-
-    console.log('[ChatService] Formatted content:', content);
+    const content = String(params.appointmentId);
+    console.log('[ChatService] Appointment message payload:', {
+      appointmentId: content,
+      messageType: MessageType.course,
+      appointmentEventType: params.type,
+    });
 
     // Set sender based on initiator
     const sender = params.initiator === 'student' ? MessageSender.student : MessageSender.coach;
@@ -77,7 +73,7 @@ export class ChatService {
       senderId: senderId,
       senderName: senderName,
       content,
-      type: MessageType.system,
+      type: MessageType.course,
     });
   }
 
@@ -120,66 +116,5 @@ export class ChatService {
     const saved = await this.msgRepo.save(msg);
     console.log('[ChatService] Message saved:', saved);
     return saved;
-  }
-
-  /**
-   * 格式化预约消息
-   *
-   * @param type 消息类型
-   * @param startTime 开始时间
-   * @param endTime 结束时间
-   * @param studentName 学生姓名
-   * @param coachName 教练姓名
-   * @param reason 拒绝原因
-   * @returns 格式化后的消息
-   */
-  private _formatAppointmentMessage(
-    type: AppointmentMessageType,
-    startTime: Date,
-    endTime: Date,
-    studentName?: string,
-    coachName?: string,
-    reason?: string,
-  ): string {
-    const timeStr = this._formatAppointmentTime(startTime, endTime);
-
-    switch (type) {
-      case AppointmentMessageType.created:
-        return `📅 Your coach has scheduled a lesson for you: ${timeStr}`;
-      case AppointmentMessageType.confirmed:
-        return `✅ Lesson confirmed: ${timeStr}`;
-      case AppointmentMessageType.rejected:
-        return `❌ Lesson request declined${reason ? `: ${reason}` : ''}`;
-      case AppointmentMessageType.cancelled:
-        return `🚫 Lesson cancelled: ${timeStr}`;
-      case AppointmentMessageType.rescheduled:
-        return `📅 Lesson rescheduled to: ${timeStr}`;
-      case AppointmentMessageType.completed:
-        return `🎉 Lesson completed!`;
-      default:
-        return `📅 Lesson update: ${timeStr}`;
-    }
-  }
-
-  /**
-   * 格式化预约时间为欧美友好的格式
-   *
-   * 例如：Sep 10, 2025 at 6:00 AM - 7:00 AM
-   *
-   * @param startTime 开始时间
-   * @param endTime 结束时间
-   * @returns 格式化后的时间字符串
-   */
-  private _formatAppointmentTime(startTime: Date, endTime: Date): string {
-    const start = dayjs(startTime);
-    const end = dayjs(endTime);
-
-    // 如果是同一天，格式为：Sep 10, 2025 at 6:00 AM - 7:00 AM
-    // 如果是不同天，格式为：Sep 10, 6:00 AM - Sep 11, 7:00 AM
-    if (start.format('YYYY-MM-DD') === end.format('YYYY-MM-DD')) {
-      return `${start.format('MMM D, YYYY')} at ${start.format('h:mm A')} - ${end.format('h:mm A')}`;
-    } else {
-      return `${start.format('MMM D, h:mm A')} - ${end.format('MMM D, h:mm A')}`;
-    }
   }
 }

@@ -121,13 +121,25 @@ class AdjustCreditsDto {
   description!: string;
 }
 
+class BindSchoolDto {
+  @IsNotEmpty()
+  @IsString()
+  drivingSchoolCode!: string;
+}
+
+class BindSchoolByIdDto {
+  @IsNotEmpty()
+  @IsNumber()
+  schoolId!: number;
+}
+
 @UseGuards(JwtAuthGuard)
 @Controller("users")
 export class UsersController {
   constructor(
     private readonly users: UsersService,
     private readonly mail: MailService,
-  ) {}
+  ) { }
 
   @Get("me")
   async me(@Req() req: any) {
@@ -150,6 +162,47 @@ export class UsersController {
       patch.birthDate = birthDate;
     }
     const updated = await this.users.updateUser(req.user.sub, patch);
+    return this.sanitizeUser(updated);
+  }
+
+  @Post("me/bind-school")
+  async bindSchool(@Req() req: any, @Body() dto: BindSchoolDto) {
+    const code = dto.drivingSchoolCode?.trim().toUpperCase();
+    if (!code) {
+      throw new BadRequestException("Driving school code is required");
+    }
+
+    const user = await this.users.findById(req.user.sub);
+    if (!user) {
+      throw new BadRequestException("User not found");
+    }
+    if (user.role !== UserRole.student) {
+      throw new ForbiddenException("Only students can bind school");
+    }
+
+    const updated = await this.users.bindSchoolToUser(user.id, code);
+    return this.sanitizeUser(updated);
+  }
+
+  @Post("me/bind-school-by-id")
+  async bindSchoolById(@Req() req: any, @Body() dto: BindSchoolByIdDto) {
+    const schoolId = Number(dto.schoolId);
+    if (!Number.isFinite(schoolId) || schoolId < 1) {
+      throw new BadRequestException("schoolId must be a positive number");
+    }
+
+    const user = await this.users.findById(req.user.sub);
+    if (!user) {
+      throw new BadRequestException("User not found");
+    }
+    if (user.role !== UserRole.student) {
+      throw new ForbiddenException("Only students can bind school");
+    }
+
+    const updated = await this.users.bindSchoolToUserBySchoolId(
+      user.id,
+      Math.trunc(schoolId),
+    );
     return this.sanitizeUser(updated);
   }
 
@@ -230,7 +283,7 @@ export class UsersController {
         coach.id,
       );
     }
-    // TODO: 发送欢迎邮件给新教练，包含账号密码和学校信息
+    // TODO: Send a welcome email to the new coach with account and school details.
     return this.sanitizeUser(result);
   }
 
@@ -333,6 +386,10 @@ export class UsersController {
       throw new BadRequestException("当前用户未绑定学校");
     }
 
+    const school = await this.users.findSchoolById(schoolId);
+    if (!school) {
+      throw new BadRequestException("School not found");
+    }
     const email = dto.email.trim().toLowerCase();
     const existing = await this.users.findByEmail(email);
     if (existing) {
@@ -342,12 +399,29 @@ export class UsersController {
       if (existing.schoolId === schoolId) {
         throw new BadRequestException("This student is already yours");
       }
-      throw new BadRequestException("This student is bound to another school");
-    }
+      if (existing.schoolId != null && existing.schoolId !== schoolId) {
+        throw new BadRequestException("This student is bound to another school");
+      }
 
-    const school = await this.users.findSchoolById(schoolId);
-    if (!school) {
-      throw new BadRequestException("School not found");
+      await this.users.updateUser(existing.id, {
+        name:
+          existing.name && existing.name.trim().length > 0
+            ? existing.name
+            : (dto.name?.trim() || email.split("@")[0]),
+        schoolId,
+        pendingSchoolCode: null,
+        ...(dto.birthDate != null ? { birthDate: new Date(dto.birthDate) } : {}),
+      } as Partial<User>);
+
+      const invite = await this.users.createInviteForStudentEmail({
+        inviterId: req.user.sub,
+        schoolId,
+        inviteeEmail: email,
+        role: 'student',
+      });
+      await this.sendStudentInviteEmail(email, school.name, invite.code);
+      const refreshed = await this.users.findById(existing.id);
+      return this.sanitizeUser(refreshed);
     }
 
     // 创建学生用户
@@ -356,6 +430,7 @@ export class UsersController {
       name: dto.name?.trim() || email.split("@")[0],
       role: "student",
       schoolId,
+      pendingSchoolCode: null,
       passwordHash: null, // 将使用默认密码 123456
     };
 
@@ -364,7 +439,13 @@ export class UsersController {
     }
 
     const student = await this.users.createUser(userData);
-    await this.sendStudentInviteEmail(email, school.name);
+    const invite = await this.users.createInviteForStudentEmail({
+      inviterId: req.user.sub,
+      schoolId,
+      inviteeEmail: email,
+      role: 'student',
+    });
+    await this.sendStudentInviteEmail(email, school.name, invite.code);
     return this.sanitizeUser(student);
   }
 
@@ -376,6 +457,10 @@ export class UsersController {
     if (!schoolId) {
       throw new BadRequestException("当前用户未绑定学校");
     }
+    const school = await this.users.findSchoolById(schoolId);
+    if (!school) {
+      throw new BadRequestException("School not found");
+    }
     const student = await this.users.findById(studentId);
     if (!student || student.role !== UserRole.student) {
       throw new BadRequestException("Student not found");
@@ -383,11 +468,13 @@ export class UsersController {
     if (student.schoolId !== schoolId) {
       throw new BadRequestException("Student does not belong to current school");
     }
-    const school = await this.users.findSchoolById(schoolId);
-    if (!school) {
-      throw new BadRequestException("School not found");
-    }
-    await this.sendStudentInviteEmail(student.email, school.name);
+    const invite = await this.users.createInviteForStudentEmail({
+      inviterId: req.user.sub,
+      schoolId,
+      inviteeEmail: student.email,
+      role: 'student',
+    });
+    await this.sendStudentInviteEmail(student.email, school.name, invite.code);
     return { ok: true };
   }
 
@@ -597,17 +684,29 @@ export class UsersController {
     return rest;
   }
 
-  private async sendStudentInviteEmail(email: string, schoolName: string) {
+  private async sendStudentInviteEmail(
+    email: string,
+    schoolName: string,
+    inviteCode: string,
+  ) {
+    const webBase = this.normalizeWebBase(
+      process.env.WEB_BASE_URL || 'https://driver-api-server.vercel.app',
+    );
+    const inviteDownloadLink = `${webBase}/download?code=${encodeURIComponent(inviteCode)}`;
     const context = {
       schoolName,
       email,
       password: '123456',
+      inviteCode,
+      inviteDownloadLink,
     };
     const defaultSubject = `You're invited to join ${schoolName}`;
     const defaultText = [
       `Hello, you've been added as a student at ${schoolName}.`,
       `Login email: ${email}`,
       `Temporary password: ${context.password}`,
+      `Download app: ${inviteDownloadLink}`,
+      `Invite code: ${inviteCode}`,
       'Please log in and change your password as soon as possible.',
     ].join('\n');
     const defaultHtml = `<!DOCTYPE html>
@@ -641,6 +740,13 @@ export class UsersController {
                 <p style="margin:0 0 18px;font-size:16px;font-weight:600;color:#0f172a;">{email}</p>
                 <p style="margin:0 0 12px;font-size:14px;color:#64748b;">Temporary password</p>
                 <p style="margin:0;font-size:20px;font-weight:700;letter-spacing:2px;color:#0f172a;">{password}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top:16px;">
+                <p style="margin:0 0 8px;font-size:14px;color:#64748b;">Download app</p>
+                <a href="{inviteDownloadLink}" style="color:#0f172a;font-weight:600;text-decoration:none;">{inviteDownloadLink}</a>
+                <p style="margin:12px 0 0;font-size:13px;color:#64748b;">Invite code: <strong style="color:#0f172a;">{inviteCode}</strong></p>
               </td>
             </tr>
             <tr>
@@ -685,5 +791,13 @@ export class UsersController {
         acc.replace(new RegExp(`\\{${key}\\}`, 'g'), value),
       template,
     );
+  }
+
+  private normalizeWebBase(base: string): string {
+    let normalized = base.trim().replace(/\/+$/, '');
+    if (normalized.endsWith('/download')) {
+      normalized = normalized.slice(0, -'/download'.length);
+    }
+    return normalized;
   }
 }

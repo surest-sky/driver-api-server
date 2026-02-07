@@ -35,7 +35,7 @@ export class MailService {
       secure: true,
       user,
       pass,
-      fromName: process.env.SMTP_FROM_NAME || 'Surest Notification',
+      fromName: process.env.SMTP_FROM_NAME || 'DriveHub Notifycation',
     };
 
     this.transporter = createTransport({

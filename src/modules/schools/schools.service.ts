@@ -94,4 +94,13 @@ export class SchoolsService {
 
     return await query.getMany();
   }
+
+  async getRandomSchools(limit = 3) {
+    const normalizedLimit = Math.max(1, Math.min(limit, 50));
+    return this.repo
+      .createQueryBuilder('school')
+      .orderBy('RAND()')
+      .limit(normalizedLimit)
+      .getMany();
+  }
 }
